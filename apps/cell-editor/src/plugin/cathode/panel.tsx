@@ -1,0 +1,82 @@
+'use client'
+
+import { type AnyNodeId, useScene } from '@pascal-app/core'
+import { PanelSection, PanelWrapper, SliderControl } from '@pascal-app/editor'
+import { useViewer } from '@pascal-app/viewer'
+import { useCallback } from 'react'
+import { cathodeCoatingThickness } from '@/src/lib/derived'
+import type { CathodeNode } from './schema'
+
+export function CathodePanel() {
+  const selectedId = useViewer((s) => s.selection.selectedIds[0])
+  const setSelection = useViewer((s) => s.setSelection)
+  const node = useScene((s) =>
+    selectedId ? (s.nodes[selectedId as AnyNodeId] as CathodeNode | undefined) : undefined,
+  )
+
+  const handleUpdate = useCallback(
+    (patch: Partial<CathodeNode>) => {
+      if (!selectedId) return
+      useScene.getState().updateNode(selectedId as AnyNodeId, patch as never)
+    },
+    [selectedId],
+  )
+
+  const handleClose = useCallback(() => {
+    setSelection({ selectedIds: [] })
+  }, [setSelection])
+
+  if (!node) return null
+
+  const coatingThickness = cathodeCoatingThickness(
+    node.cathode_mass_loading,
+    node.cathode_density,
+  )
+
+  return (
+    <PanelWrapper onClose={handleClose} title="Cathode">
+      <PanelSection title="Material">
+        <SliderControl
+          label="cathode_mass_loading"
+          max={500}
+          min={1}
+          onChange={(value) => handleUpdate({ cathode_mass_loading: value })}
+          step={1}
+          value={node.cathode_mass_loading}
+        />
+        <SliderControl
+          label="cathode_density"
+          max={5_000_000}
+          min={100_000}
+          onChange={(value) => handleUpdate({ cathode_density: value })}
+          step={10_000}
+          value={node.cathode_density}
+        />
+        <SliderControl
+          label="cathode_conductivity"
+          max={1000}
+          min={0}
+          onChange={(value) => handleUpdate({ cathode_conductivity: value })}
+          step={1}
+          value={node.cathode_conductivity}
+        />
+        <SliderControl
+          label="cathode_theoretical_capacity"
+          max={500}
+          min={1}
+          onChange={(value) => handleUpdate({ cathode_theoretical_capacity: value })}
+          step={1}
+          value={node.cathode_theoretical_capacity}
+        />
+      </PanelSection>
+      <PanelSection title="Derived">
+        <div className="flex items-center justify-between px-1 py-2 text-sm">
+          <span className="text-muted-foreground">cathode_coating_thickness</span>
+          <span className="font-mono tabular-nums">{coatingThickness.toExponential(4)}</span>
+        </div>
+      </PanelSection>
+    </PanelWrapper>
+  )
+}
+
+export default CathodePanel

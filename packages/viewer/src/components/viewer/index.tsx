@@ -23,7 +23,11 @@ import { SceneRenderer } from '../renderers/scene-renderer'
 import FrameLimiter from './frame-limiter'
 import { Lights } from './lights'
 import { PerfMonitor } from './perf-monitor'
-import PostProcessing, { DEFAULT_HOVER_STYLES, type HoverStyles } from './post-processing'
+import PostProcessing, {
+  DEFAULT_HOVER_STYLES,
+  type HoverStyles,
+  type OutlineStyle,
+} from './post-processing'
 import { RegisteredSystems } from './registered-systems'
 import { SceneBvh } from './scene-bvh'
 import { SelectionManager } from './selection-manager'
@@ -265,6 +269,7 @@ function SceneReadyTracker({
 interface ViewerProps {
   children?: React.ReactNode
   hoverStyles?: HoverStyles
+  selectedStyle?: OutlineStyle
   selectionManager?: 'default' | 'custom'
   perf?: boolean
   useBvh?: boolean
@@ -308,6 +313,7 @@ const Viewer = forwardRef<ViewerHandle, ViewerProps>(function Viewer(
   {
     children,
     hoverStyles = DEFAULT_HOVER_STYLES,
+    selectedStyle,
     selectionManager = 'default',
     perf = false,
     useBvh = true,
@@ -460,7 +466,7 @@ const Viewer = forwardRef<ViewerHandle, ViewerProps>(function Viewer(
             kind's `def.system` is loaded via lazy() and rendered here,
             ordered by `system.priority`. */}
         <RegisteredSystems />
-        <PostProcessing hoverStyles={hoverStyles} />
+        <PostProcessing hoverStyles={hoverStyles} selectedStyle={selectedStyle} />
         {selectionManager === 'default' && <SelectionManager />}
         {(perf || PERF_OVERLAY_ENABLED) && <PerfMonitor />}
         {children}

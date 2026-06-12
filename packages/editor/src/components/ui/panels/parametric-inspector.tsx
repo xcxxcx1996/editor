@@ -44,7 +44,13 @@ export function ParametricInspector({
   footer,
   nodeId,
   onClose,
-}: { footer?: React.ReactNode; nodeId?: AnyNodeId; onClose?: () => void } = {}) {
+  defaultCollapsed,
+}: {
+  footer?: React.ReactNode
+  nodeId?: AnyNodeId
+  onClose?: () => void
+  defaultCollapsed?: boolean
+} = {}) {
   const selectedIdFromSelection = useViewer((s) => s.selection.selectedIds[0]) as
     | AnyNodeId
     | undefined
@@ -137,6 +143,7 @@ export function ParametricInspector({
 
   return (
     <PanelWrapper
+      defaultCollapsed={defaultCollapsed}
       footer={footer}
       icon={iconNode}
       onClose={clearSelection}
