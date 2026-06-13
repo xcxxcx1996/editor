@@ -1,18 +1,20 @@
 'use client'
 
 import { cn } from '@pascal-app/editor'
-import { FileUp, PlusSquare } from 'lucide-react'
+import { FileDown, FileUp, PlusSquare } from 'lucide-react'
 import { useRef } from 'react'
 
 const BUTTON_BASE =
-  'flex h-11 items-center justify-center gap-2 rounded-md px-3 font-medium text-xs transition-colors'
+  'flex h-7 items-center justify-center gap-1.5 rounded-md px-2.5 font-medium text-[11px] transition-colors'
 
 export function CellTopDock({
   error,
+  onExport,
   onImport,
   onNewScene,
 }: {
   error: string | null
+  onExport: () => void
   onImport: (file: File) => void
   onNewScene: () => void
 }) {
@@ -20,7 +22,7 @@ export function CellTopDock({
 
   return (
     <div className="pointer-events-auto flex flex-col items-center gap-2">
-      <div className="flex items-stretch gap-1 rounded-lg border border-border/60 bg-background/92 p-1 text-foreground shadow-2xl backdrop-blur-md">
+      <div className="flex items-stretch gap-1 rounded-lg border border-border/60 bg-background/92 p-0.5 text-foreground shadow-2xl backdrop-blur-md">
         <button
           className={cn(
             BUTTON_BASE,
@@ -29,8 +31,19 @@ export function CellTopDock({
           onClick={() => inputRef.current?.click()}
           type="button"
         >
-          <FileUp className="h-4.5 w-4.5" />
+          <FileUp className="h-3.5 w-3.5" />
           <span>Import JSON</span>
+        </button>
+        <button
+          className={cn(
+            BUTTON_BASE,
+            'text-muted-foreground hover:bg-white/8 hover:text-foreground',
+          )}
+          onClick={onExport}
+          type="button"
+        >
+          <FileDown className="h-3.5 w-3.5" />
+          <span>Export JSON</span>
         </button>
         <button
           className={cn(
@@ -40,7 +53,7 @@ export function CellTopDock({
           onClick={onNewScene}
           type="button"
         >
-          <PlusSquare className="h-4.5 w-4.5" />
+          <PlusSquare className="h-3.5 w-3.5" />
           <span>New Scene</span>
         </button>
       </div>

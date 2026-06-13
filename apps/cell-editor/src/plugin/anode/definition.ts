@@ -13,10 +13,13 @@ export const anodeDefinition: NodeDefinition<typeof AnodeNode> = {
     parentId: null,
     visible: true,
     metadata: {},
-    anode_mass_loading: 100,
-    anode_density: 1_500_000,
+    anode_mass_loading: 200,
+    anode_density: 1.3,
     anode_conductivity: 100,
+    anode_theoretical_density: 2.23,
     anode_theoretical_capacity: 372,
+    anode_specific_capacity: 351,
+    anode_D50: 15,
   }),
 
   capabilities: {

@@ -13,10 +13,13 @@ export const cathodeDefinition: NodeDefinition<typeof CathodeNode> = {
     parentId: null,
     visible: true,
     metadata: {},
-    cathode_mass_loading: 200,
-    cathode_density: 2_100_000,
+    cathode_mass_loading: 500,
+    cathode_density: 2.1,
     cathode_conductivity: 10,
+    cathode_theoretical_density: 3.6,
     cathode_theoretical_capacity: 170,
+    cathode_specific_capacity: 161,
+    cathode_D50: 1,
   }),
 
   capabilities: {

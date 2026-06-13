@@ -4,7 +4,7 @@ import { CellNode } from './schema'
 
 export const cellDefinition: NodeDefinition<typeof CellNode> = {
   kind: 'cell',
-  schemaVersion: 1,
+  schemaVersion: 2,
   schema: CellNode,
   category: 'utility',
 
@@ -13,8 +13,9 @@ export const cellDefinition: NodeDefinition<typeof CellNode> = {
     parentId: null,
     visible: true,
     metadata: {},
-    electrode_length: 1000,
-    electrode_width: 500,
+    electrode_length: 400,
+    electrode_width: 100,
+    cc_position: 'opposite',
     children: [],
   }),
 

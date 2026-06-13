@@ -1,9 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import {
   EXAGGERATED_THICKNESS_SCALE,
+  getExplodedPresentation,
   getPresentationThicknessScale,
   REAL_THICKNESS_SCALE,
+  setExplodedPresentation,
   setPresentationThicknessScale,
+  toggleExplodedPresentation,
   togglePresentationThicknessScale,
 } from './presentation-thickness'
 import { buildStackLayout, buildStackPresentationLayout } from './stack-layout'
@@ -19,9 +22,9 @@ const templateIds = {
 const input = {
   numberOfLayers: 1,
   cathodeMassLoading: 200,
-  cathodeDensity: 2_100_000,
-  anodeMassLoading: 100,
-  anodeDensity: 1_500_000,
+  cathodeDensity: 2.1,
+  anodeMassLoading: 200,
+  anodeDensity: 1.3,
   separatorThickness: 0.0078,
   ccPThickness: 0.013,
   ccNThickness: 0.006,
@@ -43,5 +46,15 @@ describe('presentation thickness', () => {
       (physical[0]?.thicknessMm ?? 0) * EXAGGERATED_THICKNESS_SCALE,
     )
     expect(physical[0]?.centerYMm).not.toBe(presented[0]?.centerYMm)
+  })
+
+  test('toggles exploded presentation independently of thickness scale', () => {
+    setPresentationThicknessScale(EXAGGERATED_THICKNESS_SCALE)
+    setExplodedPresentation(false)
+
+    toggleExplodedPresentation()
+
+    expect(getExplodedPresentation()).toBe(true)
+    expect(getPresentationThicknessScale()).toBe(EXAGGERATED_THICKNESS_SCALE)
   })
 })

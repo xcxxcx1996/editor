@@ -13,7 +13,7 @@ export const stackDefinition: NodeDefinition<typeof StackNode> = {
     parentId: null,
     visible: true,
     metadata: {},
-    number_of_layers: 1,
+    number_of_layers: 27,
     children: [],
   }),
 

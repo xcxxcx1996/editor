@@ -34,7 +34,7 @@ export function resolveCellStackContext(
   const cell = stackNode.parentId
     ? (nodes[stackNode.parentId] as CellNode | undefined)
     : undefined
-  if (!cell || cell.type !== 'cell') return null
+  if (cell?.type !== 'cell') return null
 
   const childIds = stackNode.children ?? []
   const cathode = findChildByType<CathodeNode>(nodes, childIds, 'cathode')

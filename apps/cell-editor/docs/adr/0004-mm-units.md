@@ -1,4 +1,4 @@
-# ADR-0004 — Storage units: mm for geometry, SI base for materials, no UI labels
+# ADR-0004 — Storage units: mm for geometry, panel units for materials
 
 **Status:** Accepted · 2026-06-11
 
@@ -6,7 +6,7 @@
 
 `@pascal-app/viewer` is calibrated for metres. `CellDesign` (the user's
 source-of-truth model) uses heterogeneous units via the `pint` library:
-μm for thicknesses, mm for lengths, g/m³ for densities, mol/m³ for
+μm for thicknesses, mm for lengths, g/cm³ for densities, mol/m³ for
 concentrations, S/m for conductivity, mA·h/g for capacity, dimensionless
 for porosity.
 
@@ -27,22 +27,21 @@ We need to decide:
 - `cathode_coating_thickness` (derived, mm)
 - `anode_coating_thickness` (derived, mm)
 
-**Material fields stored in SI base units.**
+**Material fields stored in panel-friendly units.**
 
 - Areal mass loadings stay as **g/m²** (not converted).
-- Densities stored as **g/m³** (e.g. `2.1 g/cm³ → 2_100_000`).
+- Densities stored as **g/cm³** (e.g. `2.1`, not `2_100_000`).
 - Concentrations stay **mol/m³**.
 - Conductivity stays **S/m**.
 - Capacity stays **mA·h/g**.
 - Porosity dimensionless.
 
 **The renderer converts mm → metres at the boundary** — single
-`mmToMeters()` helper. SI material values are passed straight through.
+`mmToMeters()` helper. Density values are converted to g/m³ only inside
+derived-thickness calculations.
 
-**The panel shows raw stored values with no unit labels.** The user
-reads `1000` and knows it's 1000 mm; `0.013` and knows it's 13 μm;
-`2_100_000` and knows it's 2.1 g/cm³. Field names carry the
-information.
+**The panel shows unit labels beside values.** The user reads density as
+`2.1 g/cm^3`, avoiding large raw SI values like `2_100_000`.
 
 ## Alternatives Considered
 

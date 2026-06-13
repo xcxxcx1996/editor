@@ -31,7 +31,7 @@ export function AnodePanel() {
   const coatingThickness = anodeCoatingThickness(node.anode_mass_loading, node.anode_density)
 
   return (
-    <PanelWrapper onClose={handleClose} title="Anode">
+    <PanelWrapper defaultCollapsed={false} onClose={handleClose} title="Anode">
       <PanelSection title="Material">
         <SliderControl
           label="anode_mass_loading"
@@ -39,14 +39,17 @@ export function AnodePanel() {
           min={1}
           onChange={(value) => handleUpdate({ anode_mass_loading: value })}
           step={1}
+          unit="g/m^2"
           value={node.anode_mass_loading}
         />
         <SliderControl
           label="anode_density"
-          max={5_000_000}
-          min={100_000}
+          max={5}
+          min={0.1}
           onChange={(value) => handleUpdate({ anode_density: value })}
-          step={10_000}
+          precision={2}
+          step={0.01}
+          unit="g/cm^3"
           value={node.anode_density}
         />
         <SliderControl
@@ -55,7 +58,18 @@ export function AnodePanel() {
           min={0}
           onChange={(value) => handleUpdate({ anode_conductivity: value })}
           step={1}
+          unit="S/m"
           value={node.anode_conductivity}
+        />
+        <SliderControl
+          label="anode_theoretical_density"
+          max={8}
+          min={0.1}
+          onChange={(value) => handleUpdate({ anode_theoretical_density: value })}
+          precision={2}
+          step={0.01}
+          unit="g/cm^3"
+          value={node.anode_theoretical_density}
         />
         <SliderControl
           label="anode_theoretical_capacity"
@@ -63,13 +77,35 @@ export function AnodePanel() {
           min={1}
           onChange={(value) => handleUpdate({ anode_theoretical_capacity: value })}
           step={1}
+          unit="mA*h/g"
           value={node.anode_theoretical_capacity}
+        />
+        <SliderControl
+          label="anode_specific_capacity"
+          max={500}
+          min={1}
+          onChange={(value) => handleUpdate({ anode_specific_capacity: value })}
+          step={1}
+          unit="mA*h/g"
+          value={node.anode_specific_capacity}
+        />
+        <SliderControl
+          label="anode_D50"
+          max={50}
+          min={0.1}
+          onChange={(value) => handleUpdate({ anode_D50: value })}
+          precision={1}
+          step={0.1}
+          unit="µm"
+          value={node.anode_D50}
         />
       </PanelSection>
       <PanelSection title="Derived">
-        <div className="flex items-center justify-between px-1 py-2 text-sm">
-          <span className="text-muted-foreground">anode_coating_thickness</span>
-          <span className="font-mono tabular-nums">{coatingThickness.toExponential(4)}</span>
+        <div className="flex items-center justify-between gap-3 px-1 py-2 text-xs">
+          <span className="truncate text-muted-foreground">anode_coating_thickness</span>
+          <span className="shrink-0 font-mono text-foreground tabular-nums">
+            {coatingThickness.toFixed(4)} mm
+          </span>
         </div>
       </PanelSection>
     </PanelWrapper>

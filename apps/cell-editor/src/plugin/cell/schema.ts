@@ -4,8 +4,9 @@ import { z } from 'zod'
 export const CellNode = BaseNode.extend({
   id: objectId('cell'),
   type: nodeType('cell'),
-  electrode_length: z.number().positive().default(1000),
-  electrode_width: z.number().positive().default(500),
+  electrode_length: z.number().positive().default(400),
+  electrode_width: z.number().positive().default(100),
+  cc_position: z.enum(['opposite', 'same']).default('opposite'),
   children: z.array(z.string()).default([]),
 })
 

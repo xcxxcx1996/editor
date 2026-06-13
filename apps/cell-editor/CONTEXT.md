@@ -62,26 +62,61 @@ rest are deferred to v0.2+ (see ADR-0005).
 | `cc_p_thickness` | CathodeCurrentCollector template | mm |
 | `cc_n_thickness` | AnodeCurrentCollector template | mm |
 
+### Tab properties (v0.2)
+
+| Property | Lives on | Unit (storage) |
+|---|---|---|
+| `cc_p_tab_length` | CathodeCurrentCollector template | mm |
+| `cc_n_tab_length` | AnodeCurrentCollector template | mm |
+| `cc_p_tab_width` | CathodeCurrentCollector template | mm |
+| `cc_n_tab_width` | AnodeCurrentCollector template | mm |
+| `cc_p_tab_y_coordinate` | CathodeCurrentCollector template | mm |
+| `cc_n_tab_y_coordinate` | AnodeCurrentCollector template | mm |
+| `cc_position` | Cell | enum ("opposite" \| "same", v0.2 only "opposite") |
+
+### Tab
+A protrusion that extends outward from a current collector foil along the
+X axis (the long in-plane axis). Carries current out of the cell to an
+external terminal.
+
+- `tab_length` — extent of the tab along X (outward from the collector edge)
+- `tab_width` — extent of the tab along Z (the cell width direction),
+  matching the Cell's `electrode_width` axis
+- `tab_y_coordinate` — position of the tab centre along the cell width
+  direction, measured from one width edge; centred tabs use
+  `electrode_width / 2`
+
+### Tab position (`cc_position`)
+How the two collectors' tabs are arranged along X:
+- `"opposite"` — anode tab extends along -X, cathode tab extends along +X
+- `"same"` — both tabs extend along the same X direction (deferred to v0.3)
+
 ### Material properties (v0.1, displayed on cathode/anode panels)
 
 | Property | Unit (storage) | Source field |
 |---|---|---|
 | `cathode_mass_loading` | g/m² (kept as areal density) | `cathode_mass_loading` |
 | `anode_mass_loading` | g/m² | `anode_mass_loading` |
-| `cathode_density` | g/m³ (SI base) | `cathode_density` |
-| `anode_density` | g/m³ | `anode_density` |
+| `cathode_density` | g/cm³ | `cathode_density` |
+| `anode_density` | g/cm³ | `anode_density` |
 | `cathode_conductivity` | S/m | `cathode_conductivity` |
 | `anode_conductivity` | S/m | `anode_conductivity` |
 | `separator_porosity` | dimensionless | `separator_porosity` |
+| `cathode_theoretical_density` | g/cm³ | `cathode_theoretical_density` |
+| `anode_theoretical_density` | g/cm³ | `anode_theoretical_density` |
 | `cathode_theoretical_capacity` | mA·h/g | `cathode_theoretical_capacity` |
 | `anode_theoretical_capacity` | mA·h/g | `anode_theoretical_capacity` |
+| `cathode_specific_capacity` | mA·h/g | `cathode_specific_capacity` |
+| `anode_specific_capacity` | mA·h/g | `anode_specific_capacity` |
+| `cathode_D50` | µm | `cathode_D50` |
+| `anode_D50` | µm | `anode_D50` |
 
 ### Derived property
 
 | Property | Formula |
 |---|---|
-| `cathode_coating_thickness` | `cathode_mass_loading / cathode_density` |
-| `anode_coating_thickness` | `anode_mass_loading / anode_density` |
+| `cathode_coating_thickness` | `cathode_mass_loading / (cathode_density × 1_000_000) × 1000` |
+| `anode_coating_thickness` | `anode_mass_loading / (anode_density × 1_000_000) × 1000` |
 | `total_stack_height` | N × (2 × anode_coating + 2 × cathode_coating + 2 × separator + 2 × anode_collector + cathode_collector) |
 
 Single repeating unit:
@@ -112,18 +147,17 @@ frame — no apply button. Implemented via the shared scene store: panel
 input → `updateNode(id, partial)` → store subscribers → renderer
 rebuilds geometry from updated parameters.
 
-## Out of Scope (v0.1)
+## Out of Scope (v0.1 / v0.2)
 
 The following exist in `CellDesign` but are **not editable in the
-panel** in v0.1 — they are read-only placeholders until v0.2+:
+panel** in v0.1 / v0.2 — they are read-only placeholders until a
+later version:
 
-- Tab geometry (`cc_p_tab_*`, `cc_n_tab_*`, `cc_*_tab_y_coordinate`)
-- `cc_position` (currently a default constant "opposite")
 - Cell shell (`shell_*`, `wall_thickness`)
 - Electrolyte (`init_conc_electrolyte`, `electrolyte_coefficient`)
 - Voltage window (`lower_voltage`, `upper_voltage`, `voltage_at_0_soc`,
   `voltage_at_100_soc`)
-- Particle-scale parameters (`a_prefactor_p/n`, `cathode_D50`,
-  `anode_D50`, `init_conc_*`, `*_theoretical_max_concentration`)
+- Particle-scale parameters other than editable D50 (`a_prefactor_p/n`,
+  `init_conc_*`, `*_theoretical_max_concentration`)
 
 See ADR-0005 for the deferred list.

@@ -5,7 +5,9 @@ export const separatorParametrics: ParametricDescriptor<SeparatorNode> = {
   groups: [
     {
       label: 'Geometry',
-      fields: [{ key: 'separator_thickness', kind: 'number', min: 0.0001, step: 0.0001 }],
+      fields: [
+        { key: 'separator_thickness', kind: 'number', min: 0.0001, step: 0.0001, unit: 'mm' },
+      ],
     },
     {
       label: 'Material',

@@ -4,7 +4,7 @@ import { AnodeCurrentCollectorNode } from './schema'
 
 export const anodeCurrentCollectorDefinition: NodeDefinition<typeof AnodeCurrentCollectorNode> = {
   kind: 'anode-current-collector',
-  schemaVersion: 1,
+  schemaVersion: 2,
   schema: AnodeCurrentCollectorNode,
   category: 'utility',
 
@@ -14,6 +14,9 @@ export const anodeCurrentCollectorDefinition: NodeDefinition<typeof AnodeCurrent
     visible: true,
     metadata: {},
     cc_n_thickness: 0.006,
+    cc_n_tab_length: 30,
+    cc_n_tab_width: 80,
+    cc_n_tab_y_coordinate: 50,
   }),
 
   capabilities: {

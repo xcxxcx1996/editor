@@ -5,7 +5,7 @@ import { CathodeCurrentCollectorNode } from './schema'
 export const cathodeCurrentCollectorDefinition: NodeDefinition<typeof CathodeCurrentCollectorNode> =
   {
     kind: 'cathode-current-collector',
-    schemaVersion: 1,
+    schemaVersion: 2,
     schema: CathodeCurrentCollectorNode,
     category: 'utility',
 
@@ -15,6 +15,9 @@ export const cathodeCurrentCollectorDefinition: NodeDefinition<typeof CathodeCur
       visible: true,
       metadata: {},
       cc_p_thickness: 0.013,
+      cc_p_tab_length: 30,
+      cc_p_tab_width: 80,
+      cc_p_tab_y_coordinate: 50,
     }),
 
     capabilities: {

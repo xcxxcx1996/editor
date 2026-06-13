@@ -1,11 +1,15 @@
 'use client'
 
 import { useRegistry, useScene } from '@pascal-app/core'
-import { createDefaultMaterial, useNodeEvents, useViewer } from '@pascal-app/viewer'
+import { createDefaultMaterial, glassMaterial, useNodeEvents, useViewer } from '@pascal-app/viewer'
 import { useMemo, useRef } from 'react'
 import type { Group } from 'three'
 import { LAYER_COLORS } from '@/src/lib/colors'
-import { usePresentationThicknessScale } from '@/src/lib/presentation-thickness'
+import {
+  EXPLODED_LAYER_GAP_MM,
+  useExplodedPresentation,
+  usePresentationThicknessScale,
+} from '@/src/lib/presentation-thickness'
 import { resolveCellStackContext } from '@/src/lib/resolve-templates'
 import {
   buildStackLayout,
@@ -15,34 +19,87 @@ import {
 import { mmToMeters } from '@/src/lib/units'
 import type { StackNode } from './schema'
 
+const SEPARATOR_LENGTH_OVERHANG_MM = 5
+
 type TemplateNode = {
   id: string
   type: string
+  node: unknown
+}
+
+type CollectorTabGeometry = {
+  lengthMm: number
+  widthMm: number
+  yCoordinateMm: number
+  xSign: 1 | -1
+}
+
+function resolveCollectorTabGeometry(
+  template: TemplateNode,
+  defaultYCoordinateMm: number,
+): CollectorTabGeometry | null {
+  const node = template.node as Record<string, unknown>
+  if (template.type === 'cathode-current-collector') {
+    return {
+      lengthMm: typeof node.cc_p_tab_length === 'number' ? node.cc_p_tab_length : 30,
+      widthMm: typeof node.cc_p_tab_width === 'number' ? node.cc_p_tab_width : 80,
+      yCoordinateMm:
+        typeof node.cc_p_tab_y_coordinate === 'number'
+          ? node.cc_p_tab_y_coordinate
+          : defaultYCoordinateMm,
+      xSign: 1,
+    }
+  }
+
+  if (template.type === 'anode-current-collector') {
+    return {
+      lengthMm: typeof node.cc_n_tab_length === 'number' ? node.cc_n_tab_length : 30,
+      widthMm: typeof node.cc_n_tab_width === 'number' ? node.cc_n_tab_width : 80,
+      yCoordinateMm:
+        typeof node.cc_n_tab_y_coordinate === 'number'
+          ? node.cc_n_tab_y_coordinate
+          : defaultYCoordinateMm,
+      xSign: -1,
+    }
+  }
+
+  return null
 }
 
 function TemplateLayerGroup({
   template,
   layers,
   lengthM,
+  cellWidthMm,
   widthM,
 }: {
   template: TemplateNode
   layers: PhysicalLayer[]
   lengthM: number
+  cellWidthMm: number
   widthM: number
 }) {
   const ref = useRef<Group>(null!)
   const shading = useViewer((s) => s.shading)
   const thicknessScale = usePresentationThicknessScale()
+  const exploded = useExplodedPresentation()
   useRegistry(template.id, template.type, ref)
   const handlers = useNodeEvents(template as never, template.type as never)
   const presentationLayers = useMemo(
-    () => buildStackPresentationLayout(layers, thicknessScale),
-    [layers, thicknessScale],
+    () =>
+      buildStackPresentationLayout(layers, thicknessScale, exploded ? EXPLODED_LAYER_GAP_MM : 0),
+    [exploded, layers, thicknessScale],
+  )
+  const tabGeometry = useMemo(
+    () => resolveCollectorTabGeometry(template, cellWidthMm / 2),
+    [cellWidthMm, template],
   )
 
   const material = useMemo(
-    () => createDefaultMaterial(LAYER_COLORS[layers[0]?.kind ?? 'cathode'], 0.55, shading),
+    () =>
+      layers[0]?.kind === 'separator'
+        ? glassMaterial
+        : createDefaultMaterial(LAYER_COLORS[layers[0]?.kind ?? 'cathode'], 0.55, shading),
     [layers, shading],
   )
 
@@ -51,13 +108,37 @@ function TemplateLayerGroup({
       {presentationLayers.map((layer, index) => {
         const thicknessM = mmToMeters(layer.thicknessMm)
         const centerY = mmToMeters(layer.centerYMm)
+        const layerLengthM =
+          layer.kind === 'separator' ? lengthM + mmToMeters(SEPARATOR_LENGTH_OVERHANG_MM) : lengthM
+        const tabLengthM = tabGeometry ? mmToMeters(tabGeometry.lengthMm) : 0
+        const tabWidthM = tabGeometry ? mmToMeters(tabGeometry.widthMm) : 0
+        const tabCenterX = tabGeometry ? tabGeometry.xSign * (lengthM / 2 + tabLengthM / 2) : 0
+        const tabCenterZ = tabGeometry ? mmToMeters(tabGeometry.yCoordinateMm - cellWidthMm / 2) : 0
         return (
-          <mesh key={`${layer.kind}-${index}`} position={[0, centerY, 0]} {...handlers}>
-            <boxGeometry
-              args={[Math.max(lengthM, 1e-4), Math.max(thicknessM, 1e-4), Math.max(widthM, 1e-4)]}
-            />
-            <primitive attach="material" object={material} />
-          </mesh>
+          <group key={`${layer.kind}-${index}`}>
+            <mesh position={[0, centerY, 0]} {...handlers}>
+              <boxGeometry
+                args={[
+                  Math.max(layerLengthM, 1e-4),
+                  Math.max(thicknessM, 1e-4),
+                  Math.max(widthM, 1e-4),
+                ]}
+              />
+              <primitive attach="material" object={material} />
+            </mesh>
+            {tabGeometry && tabGeometry.lengthMm >= 1 && (
+              <mesh position={[tabCenterX, centerY, tabCenterZ]} {...handlers}>
+                <boxGeometry
+                  args={[
+                    Math.max(tabLengthM, 1e-4),
+                    Math.max(thicknessM, 1e-4),
+                    Math.max(tabWidthM, 1e-4),
+                  ]}
+                />
+                <primitive attach="material" object={material} />
+              </mesh>
+            )}
+          </group>
         )
       })}
     </group>
@@ -66,37 +147,9 @@ function TemplateLayerGroup({
 
 const StackRenderer = ({ node }: { node: StackNode }) => {
   const nodes = useScene((s) => s.nodes)
-  const cellLength = useScene((s) => {
-    const cellId = node.parentId
-    if (!cellId) return 0
-    const cell = s.nodes[cellId as keyof typeof s.nodes] as
-      | { electrode_length?: number }
-      | undefined
-    return cell?.electrode_length ?? 0
-  })
-  const cellWidth = useScene((s) => {
-    const cellId = node.parentId
-    if (!cellId) return 0
-    const cell = s.nodes[cellId as keyof typeof s.nodes] as { electrode_width?: number } | undefined
-    return cell?.electrode_width ?? 0
-  })
-  const stackLayers = useScene((s) => {
-    const n = s.nodes[node.id as keyof typeof s.nodes] as StackNode | undefined
-    return n?.number_of_layers ?? 1
-  })
-  const templateFingerprint = useScene((s) => {
-    const childIds = node.children ?? []
-    return childIds
-      .map((id) => {
-        const child = s.nodes[id as keyof typeof s.nodes]
-        return child ? JSON.stringify(child) : ''
-      })
-      .join('|')
-  })
-
   const context = useMemo(
     () => resolveCellStackContext(nodes as Record<string, unknown>, node),
-    [nodes, node, cellLength, cellWidth, stackLayers, templateFingerprint],
+    [nodes, node],
   )
 
   const layout = useMemo(() => {
@@ -124,7 +177,7 @@ const StackRenderer = ({ node }: { node: StackNode }) => {
         existing.layers.push(layer)
       } else {
         grouped.set(templateEntry.id, {
-          template: { id: templateEntry.id, type: layer.kind },
+          template: { id: templateEntry.id, node: templateEntry.node, type: layer.kind },
           layers: [layer],
         })
       }
@@ -142,6 +195,7 @@ const StackRenderer = ({ node }: { node: StackNode }) => {
       {Array.from(layersByTemplate.values()).map(({ template, layers }) => (
         <TemplateLayerGroup
           key={template.id}
+          cellWidthMm={context.cell.electrode_width}
           layers={layers}
           lengthM={lengthM}
           template={template}

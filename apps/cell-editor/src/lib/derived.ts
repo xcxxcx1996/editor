@@ -1,11 +1,11 @@
-/** mass_loading (g/m²) / density (g/m³) → metres; ×1000 → mm per ADR-0004 */
-export function cathodeCoatingThickness(massLoadingGm2: number, densityGm3: number): number {
-  if (densityGm3 <= 0) return 0
-  return (massLoadingGm2 / densityGm3) * 1000
+/** mass_loading (g/m^2) / density (g/cm^3 -> g/m^3) -> metres; x1000 -> mm. */
+export function cathodeCoatingThickness(massLoadingGm2: number, densityGcm3: number): number {
+  if (densityGcm3 <= 0) return 0
+  return (massLoadingGm2 / (densityGcm3 * 1_000_000)) * 1000
 }
 
-export function anodeCoatingThickness(massLoadingGm2: number, densityGm3: number): number {
-  return cathodeCoatingThickness(massLoadingGm2, densityGm3)
+export function anodeCoatingThickness(massLoadingGm2: number, densityGcm3: number): number {
+  return cathodeCoatingThickness(massLoadingGm2, densityGcm3)
 }
 
 export type StackThicknessInput = {
@@ -41,7 +41,7 @@ export function totalStackHeight(input: StackThicknessInput): number {
   const n = Math.max(1, Math.floor(input.numberOfLayers))
 
   for (let repeat = 0; repeat < n; repeat += 1) {
-    for (const kind of [
+    const unitOrder = [
       'anode-current-collector',
       'anode',
       'separator',
@@ -51,7 +51,8 @@ export function totalStackHeight(input: StackThicknessInput): number {
       'separator',
       'anode',
       'anode-current-collector',
-    ] as const) {
+    ] as const
+    for (const kind of repeat === 0 ? unitOrder : unitOrder.slice(1)) {
       height += layerThicknessMm(kind, input)
     }
   }

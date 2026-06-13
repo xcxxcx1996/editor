@@ -74,11 +74,11 @@ export function StackPanel() {
   if (!stack) return null
 
   return (
-    <PanelWrapper onClose={handleClose} title="Stack">
+    <PanelWrapper defaultCollapsed={false} onClose={handleClose} title="Stack">
       <PanelSection title="Geometry">
         <SliderControl
           label="number_of_layers"
-          max={20}
+          max={100}
           min={1}
           onChange={(value) => handleUpdate({ number_of_layers: Math.round(value) })}
           step={1}
@@ -86,9 +86,11 @@ export function StackPanel() {
         />
       </PanelSection>
       <PanelSection title="Derived">
-        <div className="flex items-center justify-between px-1 py-2 text-sm">
-          <span className="text-muted-foreground">total_stack_height</span>
-          <span className="font-mono tabular-nums">{stackHeight.toExponential(4)}</span>
+        <div className="flex items-center justify-between gap-3 px-1 py-2 text-xs">
+          <span className="truncate text-muted-foreground">total_stack_height</span>
+          <span className="shrink-0 font-mono text-foreground tabular-nums">
+            {stackHeight.toFixed(4)} mm
+          </span>
         </div>
       </PanelSection>
     </PanelWrapper>
