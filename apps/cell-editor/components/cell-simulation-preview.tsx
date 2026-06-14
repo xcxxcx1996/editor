@@ -26,8 +26,8 @@ import {
 } from 'three'
 import { type CellStructureNode, resolveCellStructure } from '@/src/lib/cell-structure'
 import {
+  type PredictionResultResponse,
   type PredictionSimulationResult,
-  usePredictionResult,
   usePredictions,
 } from '@/src/lib/predictions/use-predictions'
 import { resolveCellStackContext } from '@/src/lib/resolve-templates'
@@ -79,6 +79,12 @@ export type SimulationPreviewState = {
 }
 
 export type SimulationPreviewPatch = Partial<SimulationPreviewState>
+
+export type SimulationResultState = {
+  error: string | null
+  loading: boolean
+  result: PredictionResultResponse | null
+}
 
 const SIMULATION_DURATION = 60
 const FIELD_FRAME_TIMES = [0, 10, 20, 30, 40, 50, 60]
@@ -574,6 +580,7 @@ export function CellSimulationButton({
 export function CellSimulationResultsPanel({
   embedded = false,
   onBack,
+  resultState,
   state,
   onCellDesignPreview,
   onChange,
@@ -581,16 +588,13 @@ export function CellSimulationResultsPanel({
 }: {
   embedded?: boolean
   onBack?: () => void
+  resultState: SimulationResultState
   state: SimulationPreviewState
   onCellDesignPreview?: (cellDesign: unknown) => void
   onChange: (patch: SimulationPreviewPatch) => void
   onClose: () => void
 }) {
-  const {
-    error: resultError,
-    loading: resultLoading,
-    result,
-  } = usePredictionResult(state.activePredictionId)
+  const { error: resultError, loading: resultLoading, result } = resultState
   const resultJob = useMemo(
     () => predictionResultToJob(result?.simulationResult),
     [result?.simulationResult],
@@ -1090,8 +1094,14 @@ function SimulationField({
   )
 }
 
-export function CellSimulationFieldOverlay({ state }: { state: SimulationPreviewState }) {
-  const { result } = usePredictionResult(state.activePredictionId)
+export function CellSimulationFieldOverlay({
+  resultState,
+  state,
+}: {
+  resultState: SimulationResultState
+  state: SimulationPreviewState
+}) {
+  const { result } = resultState
   const resultJob = useMemo(
     () => predictionResultToJob(result?.simulationResult),
     [result?.simulationResult],

@@ -4,7 +4,7 @@ import { type SceneGraph, useScene, validateBuildJson } from '@pascal-app/core'
 import { cn, Grid } from '@pascal-app/editor'
 import { type OutlineStyle, useViewer, Viewer } from '@pascal-app/viewer'
 import { CameraControls } from '@react-three/drei'
-import { Bot, ChevronLeft, ChevronsRight, ListChecks, Goal } from 'lucide-react'
+import { Bot, ChevronLeft, ChevronsRight, Goal, ListChecks } from 'lucide-react'
 import Link from 'next/link'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { CellAgentDock } from '@/components/cell-agent-dock'
@@ -19,6 +19,7 @@ import {
   CellSimulationResultsPanel,
   INITIAL_SIMULATION_PREVIEW_STATE,
   type SimulationPreviewState,
+  type SimulationResultState,
 } from '@/components/cell-simulation-preview'
 import { CellTopDock } from '@/components/cell-top-dock'
 import {
@@ -31,6 +32,7 @@ import {
   createDefaultCellScene,
   saveCellSceneToLocalStorage,
 } from '@/src/lib/defaults'
+import { usePredictionResult } from '@/src/lib/predictions/use-predictions'
 import {
   getExplodedPresentation,
   getPresentationThicknessScale,
@@ -219,6 +221,8 @@ export function CellEditorShell({ initialScene, projectId, projectName }: CellEd
   const [simulationPreview, setSimulationPreview] = useState<SimulationPreviewState>(
     INITIAL_SIMULATION_PREVIEW_STATE,
   )
+  const predictionResultState = usePredictionResult(simulationPreview.activePredictionId)
+  const simulationResultState: SimulationResultState = predictionResultState
   const isLoadingSceneRef = useRef(false)
   const loadingHideTimeoutRef = useRef<number | null>(null)
   const loadingTimeoutRef = useRef<number | null>(null)
@@ -606,7 +610,10 @@ export function CellEditorShell({ initialScene, projectId, projectName }: CellEd
               onFitFramed={() => hideEditorLoadingSoon(false)}
             />
             {isSimulationPreview ? (
-              <CellSimulationFieldOverlay state={simulationPreview} />
+              <CellSimulationFieldOverlay
+                resultState={simulationResultState}
+                state={simulationPreview}
+              />
             ) : (
               <CellSelectionManager />
             )}
@@ -661,6 +668,7 @@ export function CellEditorShell({ initialScene, projectId, projectName }: CellEd
                 }))
               }
               onClose={closeSidebarPanel}
+              resultState={simulationResultState}
               state={simulationPreview}
             />
           ) : null}

@@ -87,6 +87,8 @@ type UsePredictionsOptions = {
 }
 
 const INCOMPLETE_STATUSES = new Set(['pending', 'queued', 'running'])
+const predictionResultCache = new Map<string, PredictionResultResponse>()
+const predictionResultRequests = new Map<string, Promise<PredictionResultResponse>>()
 
 function isIncompletePrediction(status: string | null | undefined) {
   return INCOMPLETE_STATUSES.has(status ?? 'pending')
@@ -133,6 +135,72 @@ async function loadSimulationResult(
   }
 
   return null
+}
+
+function isCompleteResultResponse(result: PredictionResultResponse) {
+  return !isIncompletePrediction(result.data?.status)
+}
+
+function loadPredictionResult(
+  supabase: ReturnType<typeof createClient>,
+  predictionId: string,
+): Promise<PredictionResultResponse> {
+  const cached = predictionResultCache.get(predictionId)
+  if (cached && isCompleteResultResponse(cached)) return Promise.resolve(cached)
+
+  const pending = predictionResultRequests.get(predictionId)
+  if (pending) return pending
+
+  const request = (async () => {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
+
+    if (userError || !user) {
+      throw new Error('Sign in before loading prediction results.')
+    }
+
+    const { data, error: queryError } = await supabase
+      .from('prediction_job')
+      .select('id, cell_design, status, result_uri, error_message, finished_at, updated_at')
+      .eq('id', predictionId)
+      .single()
+
+    if (queryError) throw queryError
+
+    const record = data as PredictionResultRecord
+    const storage = storageReferenceFromResultUri(record.result_uri)
+    let simulationResult: PredictionSimulationResult | null = null
+    let resultError: string | null = null
+    try {
+      simulationResult = await loadSimulationResult(supabase, storage)
+    } catch (downloadError) {
+      resultError =
+        downloadError instanceof Error ? downloadError.message : 'Could not load result JSON.'
+    }
+
+    const result = {
+      data: record,
+      resultError,
+      simulationResult,
+      storage,
+    } satisfies PredictionResultResponse
+
+    if (isCompleteResultResponse(result)) {
+      predictionResultCache.set(predictionId, result)
+    }
+
+    return result
+  })()
+
+  predictionResultRequests.set(predictionId, request)
+  request.then(
+    () => predictionResultRequests.delete(predictionId),
+    () => predictionResultRequests.delete(predictionId),
+  )
+
+  return request
 }
 
 export function usePredictions({
@@ -245,43 +313,18 @@ export function usePredictionResult(predictionId: string | null) {
       return
     }
 
+    const cached = predictionResultCache.get(predictionId)
+    if (cached && isCompleteResultResponse(cached)) {
+      setResult(cached)
+      setError(null)
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
     setError(null)
     try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser()
-
-      if (userError || !user) {
-        throw new Error('Sign in before loading prediction results.')
-      }
-
-      const { data, error: queryError } = await supabase
-        .from('prediction_job')
-        .select('id, cell_design, status, result_uri, error_message, finished_at, updated_at')
-        .eq('id', predictionId)
-        .single()
-
-      if (queryError) throw queryError
-
-      const record = data as PredictionResultRecord
-      const storage = storageReferenceFromResultUri(record.result_uri)
-      let simulationResult: PredictionSimulationResult | null = null
-      let resultError: string | null = null
-      try {
-        simulationResult = await loadSimulationResult(supabase, storage)
-      } catch (downloadError) {
-        resultError =
-          downloadError instanceof Error ? downloadError.message : 'Could not load result JSON.'
-      }
-
-      setResult({
-        data: record,
-        resultError,
-        simulationResult,
-        storage,
-      })
+      setResult(await loadPredictionResult(supabase, predictionId))
     } catch (loadError) {
       setResult(null)
       setError(loadError instanceof Error ? loadError.message : 'Could not load result.')
