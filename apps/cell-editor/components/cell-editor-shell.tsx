@@ -4,7 +4,7 @@ import { type SceneGraph, useScene, validateBuildJson } from '@pascal-app/core'
 import { cn, Grid } from '@pascal-app/editor'
 import { type OutlineStyle, useViewer, Viewer } from '@pascal-app/viewer'
 import { CameraControls } from '@react-three/drei'
-import { Bot, ChevronLeft, ChevronsRight, ListChecks, Target } from 'lucide-react'
+import { Bot, ChevronLeft, ChevronsRight, ListChecks, Goal } from 'lucide-react'
 import Link from 'next/link'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { CellAgentDock } from '@/components/cell-agent-dock'
@@ -31,7 +31,6 @@ import {
   createDefaultCellScene,
   saveCellSceneToLocalStorage,
 } from '@/src/lib/defaults'
-import type { DesignGoal } from '@/src/lib/projects/types'
 import {
   getExplodedPresentation,
   getPresentationThicknessScale,
@@ -39,6 +38,7 @@ import {
   setExplodedPresentation,
   setPresentationThicknessScale,
 } from '@/src/lib/presentation-thickness'
+import type { DesignGoal } from '@/src/lib/projects/types'
 
 function isUsableScene(graph: SceneGraph | null | undefined): graph is SceneGraph {
   return !!graph && Object.keys(graph.nodes).length > 0 && (graph.rootNodeIds?.length ?? 0) > 0
@@ -141,7 +141,7 @@ function CellWorkspaceSidebar({
         <div className="flex flex-col items-center gap-2">
           <SidebarButton
             active={activeMode === 'goals'}
-            icon={<Target className="h-5 w-5" />}
+            icon={<Goal className="h-5 w-5" />}
             label="Goals"
             onClick={onSelectGoals}
           />
@@ -264,41 +264,46 @@ export function CellEditorShell({ initialScene, projectId, projectName }: CellEd
     }, 1000)
   }, [])
 
-  const applySceneGraph = useCallback((sceneGraph: SceneGraph, { persist = true } = {}) => {
-    const sceneWithDefaults = applyCellSceneDefaults(sceneGraph)
-    setImportError(null)
-    isLoadingSceneRef.current = true
-    useScene.getState().unloadScene()
-    useScene
-      .getState()
-      .setScene(sceneWithDefaults.nodes as never, sceneWithDefaults.rootNodeIds as never)
-    useViewer.getState().setCameraMode('orthographic')
-    useViewer.getState().setSceneTheme('studio')
-    useViewer.getState().setShading('solid')
-    useViewer.getState().setEdges('soft')
-    useViewer.getState().setShowGrid(true)
-    useViewer.getState().setSelection({ selectedIds: [sceneWithDefaults.rootNodeIds[0] as never] })
-    if (persist) {
-      saveCellSceneToLocalStorage(sceneWithDefaults)
-      setHasUnsavedChanges(false)
-      setSaveStatus('saving')
-      fetch(`/api/projects/${projectId}`, {
-        body: JSON.stringify({ cell_design: sceneWithDefaults }),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'PATCH',
-      })
-        .then((response) => {
-          if (!response.ok) throw new Error('Project save failed.')
-          setSaveStatus('saved')
+  const applySceneGraph = useCallback(
+    (sceneGraph: SceneGraph, { persist = true } = {}) => {
+      const sceneWithDefaults = applyCellSceneDefaults(sceneGraph)
+      setImportError(null)
+      isLoadingSceneRef.current = true
+      useScene.getState().unloadScene()
+      useScene
+        .getState()
+        .setScene(sceneWithDefaults.nodes as never, sceneWithDefaults.rootNodeIds as never)
+      useViewer.getState().setCameraMode('orthographic')
+      useViewer.getState().setSceneTheme('studio')
+      useViewer.getState().setShading('solid')
+      useViewer.getState().setEdges('soft')
+      useViewer.getState().setShowGrid(true)
+      useViewer
+        .getState()
+        .setSelection({ selectedIds: [sceneWithDefaults.rootNodeIds[0] as never] })
+      if (persist) {
+        saveCellSceneToLocalStorage(sceneWithDefaults)
+        setHasUnsavedChanges(false)
+        setSaveStatus('saving')
+        fetch(`/api/projects/${projectId}`, {
+          body: JSON.stringify({ cell_design: sceneWithDefaults }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'PATCH',
         })
-        .catch(() => setSaveStatus('error'))
-    }
+          .then((response) => {
+            if (!response.ok) throw new Error('Project save failed.')
+            setSaveStatus('saved')
+          })
+          .catch(() => setSaveStatus('error'))
+      }
 
-    requestAnimationFrame(() => {
-      isLoadingSceneRef.current = false
-      setEntryTrigger((n) => n + 1)
-    })
-  }, [projectId])
+      requestAnimationFrame(() => {
+        isLoadingSceneRef.current = false
+        setEntryTrigger((n) => n + 1)
+      })
+    },
+    [projectId],
+  )
 
   useEffect(() => {
     showEditorLoading('Loading editor')
@@ -358,17 +363,6 @@ export function CellEditorShell({ initialScene, projectId, projectName }: CellEd
   const handleFit = useCallback(() => {
     setFitTrigger((n) => n + 1)
   }, [])
-
-  const handleNewScene = useCallback(() => {
-    if (
-      hasUnsavedChanges &&
-      !window.confirm('You have unsaved changes. Create a new scene and discard them?')
-    ) {
-      return
-    }
-    showEditorLoading('Loading new cell')
-    applySceneGraph(createDefaultCellScene())
-  }, [applySceneGraph, hasUnsavedChanges, showEditorLoading])
 
   const handleImport = useCallback(
     async (file: File) => {
@@ -696,12 +690,7 @@ export function CellEditorShell({ initialScene, projectId, projectName }: CellEd
                   {saveStatusLabel(saveStatus)}
                 </span>
               </div>
-              <CellTopDock
-                error={importError}
-                onExport={handleExport}
-                onImport={handleImport}
-                onNewScene={handleNewScene}
-              />
+              <CellTopDock error={importError} onExport={handleExport} onImport={handleImport} />
             </div>
           ) : (
             <div />

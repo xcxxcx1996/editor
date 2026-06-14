@@ -1,7 +1,7 @@
 'use client'
 
 import { cn } from '@pascal-app/editor'
-import { FileDown, FileUp, PlusSquare } from 'lucide-react'
+import { FileDown, FileUp } from 'lucide-react'
 import { useRef } from 'react'
 
 const BUTTON_BASE =
@@ -11,12 +11,10 @@ export function CellTopDock({
   error,
   onExport,
   onImport,
-  onNewScene,
 }: {
   error: string | null
   onExport: () => void
   onImport: (file: File) => void
-  onNewScene: () => void
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null)
 
@@ -44,17 +42,6 @@ export function CellTopDock({
         >
           <FileDown className="h-3.5 w-3.5" />
           <span>Export JSON</span>
-        </button>
-        <button
-          className={cn(
-            BUTTON_BASE,
-            'text-muted-foreground hover:bg-white/8 hover:text-foreground',
-          )}
-          onClick={onNewScene}
-          type="button"
-        >
-          <PlusSquare className="h-3.5 w-3.5" />
-          <span>New Scene</span>
         </button>
       </div>
 

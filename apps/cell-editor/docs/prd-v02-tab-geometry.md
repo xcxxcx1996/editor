@@ -15,7 +15,7 @@ v0.2 adds three new domain concepts and the panels/3D renderer to edit
 and visualise them:
 
 1. **Tab protrusion** — a rectangular box that extends outward from each
-   collector's long edge along the X axis. Rendered for every physical
+   collector's long edge along the Z axis. Rendered for every physical
    collector instance, controlled by template-level tab parameters.
 2. **Tab parameters** — six new fields (length / width / y_coordinate,
    one set per collector template) editable from a new "Tab" section in
@@ -35,7 +35,7 @@ and visualise them:
    can size the tab independently of the cathode tab.
 4. As a cell designer, I want to edit the tab width along the cell width
    direction, so that the tab footprint matches the collector width axis.
-5. As a cell designer, I want to edit the tab's Z position, so that I
+5. As a cell designer, I want to edit the tab's Y position, so that I
    can offset the tab from the collector's centre along the short edge.
 6. As a cell designer, I want the tab to update in real time as I drag
    its parameters in the panel, so that I can iterate visually.
@@ -86,14 +86,15 @@ collector placement.
 
 The cell uses Three.js's standard frame:
 
-- X — long in-plane axis (along `electrode_length`)
-- Y — stacking axis (perpendicular to layers)
-- Z — short in-plane axis (along `electrode_width`)
+- X — stacking axis (perpendicular to layers), centred on `X=0`
+- Y — cell height / short in-plane axis (along `electrode_width`, from 0 to
+  `electrode_width`)
+- Z — long in-plane axis (along `electrode_length`)
 
 Tab parameters follow PyBaMM's convention:
 
-- `tab_length` — extent along X (outward from the collector edge)
-- `tab_width` — extent along Z (the cell width direction)
+- `tab_length` — extent along Z (outward from the collector edge)
+- `tab_width` — extent along Y (the cell width direction)
 - `tab_y_coordinate` — tab centre along the cell width direction, measured
   from one width edge; centred is `electrode_width / 2`
 
@@ -103,12 +104,13 @@ For each physical collector instance, when `tab_length ≥ 1` mm the
 renderer adds a single box mesh:
 
 - size: `tab_length × collector thickness × tab_width` — the tab shares the
-  collector's Y thickness and its width runs along the cell width axis
-- centre X: `±(electrode_length/2 + tab_length/2)` — `+` for cathode,
-  `-` for anode (per `cc_position = "opposite"`)
-- centre Y: the collector instance's Y centre (tab is centred on the
+  collector's X thickness and its width runs along the cell width axis
+- centre X: the collector instance's X centre (tab is centred on the
   instance, not at the top of the stack)
-- centre Z: `tab_y_coordinate - electrode_width/2`
+- centre Y: `tab_y_coordinate`, measured in the cell's 0-to-`electrode_width`
+  height frame
+- centre Z: `±(electrode_length/2 + tab_length/2)` — `+` for cathode,
+  `-` for anode (per `cc_position = "opposite"`)
 
 Tab mesh inherits the collector group's material and selection
 behaviour. Clicking either the collector box or the tab selects the
@@ -169,9 +171,9 @@ changes:
   or `anode-current-collector`, after rendering the collector box
   conditionally render a tab box using the template's tab fields and
   the cell's `electrode_length` / `electrode_width`.
-- The tab box shares the collector instance's Y centre (so it follows
-  the instance in the stack), shares the collector's Y thickness, and has
-  its own X and Z position.
+- The tab box shares the collector instance's X centre (so it follows
+  the instance in the stack), shares the collector's X thickness, and has
+  its own Y and Z position.
 - The tab box is a child of the same `<group ref={ref}>` that holds the
   collector boxes, so the collector's hover / selection behaviour
   covers the tab too.

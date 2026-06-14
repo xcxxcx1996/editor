@@ -5,7 +5,7 @@ export type PhysicalLayer = {
   kind: StackLayerKind
   templateId: string
   thicknessMm: number
-  centerYMm: number
+  centerXMm: number
   orderIndex: number
 }
 
@@ -13,7 +13,7 @@ export function buildStackLayout(
   templateIds: Record<StackLayerKind, string>,
   input: StackThicknessInput,
 ): PhysicalLayer[] {
-  const layers: Omit<PhysicalLayer, 'centerYMm' | 'orderIndex'>[] = []
+  const layers: Omit<PhysicalLayer, 'centerXMm' | 'orderIndex'>[] = []
   const n = Math.max(1, Math.floor(input.numberOfLayers))
 
   for (let repeat = 0; repeat < n; repeat += 1) {
@@ -27,12 +27,13 @@ export function buildStackLayout(
     }
   }
 
-  let cursor = 0
+  const totalThicknessMm = layers.reduce((sum, layer) => sum + layer.thicknessMm, 0)
+  let cursor = -totalThicknessMm / 2
 
   return layers.map((layer, orderIndex) => {
-    const centerYMm = cursor + layer.thicknessMm / 2
+    const centerXMm = cursor + layer.thicknessMm / 2
     cursor += layer.thicknessMm
-    return { ...layer, centerYMm, orderIndex }
+    return { ...layer, centerXMm, orderIndex }
   })
 }
 
@@ -40,10 +41,34 @@ export function buildStackPresentationLayout(
   layers: PhysicalLayer[],
   thicknessScale: number,
   explodedGapMm = 0,
+  totalLayerCount = layers.length,
 ): PhysicalLayer[] {
+  const explosionCenterOffsetMm = ((totalLayerCount - 1) * explodedGapMm) / 2
   return layers.map((layer) => ({
     ...layer,
     thicknessMm: layer.thicknessMm * thicknessScale,
-    centerYMm: layer.centerYMm * thicknessScale + layer.orderIndex * explodedGapMm,
+    centerXMm:
+      layer.centerXMm * thicknessScale + layer.orderIndex * explodedGapMm - explosionCenterOffsetMm,
   }))
+}
+
+export function computePresentationStackSpanMm(
+  layers: PhysicalLayer[],
+  thicknessScale: number,
+  explodedGapMm = 0,
+): { spanMm: number; centerMm: number } {
+  const presentationLayers = buildStackPresentationLayout(layers, thicknessScale, explodedGapMm)
+  if (presentationLayers.length === 0) return { centerMm: 0, spanMm: 0 }
+
+  const minX = Math.min(
+    ...presentationLayers.map((layer) => layer.centerXMm - layer.thicknessMm / 2),
+  )
+  const maxX = Math.max(
+    ...presentationLayers.map((layer) => layer.centerXMm + layer.thicknessMm / 2),
+  )
+
+  return {
+    centerMm: (minX + maxX) / 2,
+    spanMm: Math.max(0, maxX - minX),
+  }
 }

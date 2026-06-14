@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import { STACK_UNIT_ORDER } from './layer-order'
-import { buildStackLayout, buildStackPresentationLayout } from './stack-layout'
+import {
+  buildStackLayout,
+  buildStackPresentationLayout,
+  computePresentationStackSpanMm,
+} from './stack-layout'
 
 const templateIds = {
   cathode: 'cathode_1',
@@ -35,12 +39,13 @@ describe('buildStackLayout', () => {
     expect(kinds).toEqual([...STACK_UNIT_ORDER])
   })
 
-  test('layers grow upward from Y=0', () => {
+  test('layers are centered around X=0', () => {
     const layout = buildStackLayout(templateIds, input)
-    const minY = Math.min(...layout.map((layer) => layer.centerYMm - layer.thicknessMm / 2)) ?? 0
-    const maxY = Math.max(...layout.map((layer) => layer.centerYMm + layer.thicknessMm / 2)) ?? 0
-    expect(minY).toBeCloseTo(0, 6)
-    expect(maxY).toBeGreaterThan(0)
+    const minX = Math.min(...layout.map((layer) => layer.centerXMm - layer.thicknessMm / 2)) ?? 0
+    const maxX = Math.max(...layout.map((layer) => layer.centerXMm + layer.thicknessMm / 2)) ?? 0
+    expect(minX).toBeLessThan(0)
+    expect(maxX).toBeGreaterThan(0)
+    expect(minX).toBeCloseTo(-maxX, 6)
   })
 
   test('does not create adjacent duplicate anode current collectors at repeat boundaries', () => {
@@ -60,15 +65,51 @@ describe('buildStackLayout', () => {
     const presented = buildStackPresentationLayout(layout, 20)
 
     expect(presented[0]?.thicknessMm).toBe((layout[0]?.thicknessMm ?? 0) * 20)
-    expect(layout[0]?.centerYMm).not.toBe(presented[0]?.centerYMm)
+    expect(layout[0]?.centerXMm).not.toBe(presented[0]?.centerXMm)
   })
 
   test('exploded presentation adds gap by global layer order', () => {
     const layout = buildStackLayout(templateIds, { ...input, numberOfLayers: 1 })
     const presented = buildStackPresentationLayout(layout, 1, 2)
 
-    expect(presented[0]?.centerYMm).toBeCloseTo(layout[0]?.centerYMm ?? 0, 6)
-    expect(presented[1]?.centerYMm).toBeCloseTo((layout[1]?.centerYMm ?? 0) + 2, 6)
-    expect(presented[2]?.centerYMm).toBeCloseTo((layout[2]?.centerYMm ?? 0) + 4, 6)
+    const explosionCenterOffsetMm = ((layout.length - 1) * 2) / 2
+
+    expect(presented[0]?.centerXMm).toBeCloseTo(
+      (layout[0]?.centerXMm ?? 0) - explosionCenterOffsetMm,
+      6,
+    )
+    expect(presented[1]?.centerXMm).toBeCloseTo(
+      (layout[1]?.centerXMm ?? 0) + 2 - explosionCenterOffsetMm,
+      6,
+    )
+    expect(presented[2]?.centerXMm).toBeCloseTo(
+      (layout[2]?.centerXMm ?? 0) + 4 - explosionCenterOffsetMm,
+      6,
+    )
+  })
+
+  test('exploded presentation uses global layer count for grouped template subsets', () => {
+    const layout = buildStackLayout(templateIds, { ...input, numberOfLayers: 2 })
+    const groupedCathodes = layout.filter((layer) => layer.kind === 'cathode')
+    const presented = buildStackPresentationLayout(groupedCathodes, 1, 2, layout.length)
+    const explosionCenterOffsetMm = ((layout.length - 1) * 2) / 2
+
+    for (const [index, layer] of groupedCathodes.entries()) {
+      expect(presented[index]?.centerXMm).toBeCloseTo(
+        layer.centerXMm + layer.orderIndex * 2 - explosionCenterOffsetMm,
+        6,
+      )
+    }
+  })
+
+  test('presentation span includes X thickness scaling and exploded gaps', () => {
+    const layout = buildStackLayout(templateIds, { ...input, numberOfLayers: 1 })
+    const physicalSpan = computePresentationStackSpanMm(layout, 1, 0)
+    const presentedSpan = computePresentationStackSpanMm(layout, 20, 2)
+    const expectedExplodedGap = (layout.length - 1) * 2
+
+    expect(presentedSpan.spanMm).toBeCloseTo(physicalSpan.spanMm * 20 + expectedExplodedGap, 6)
+    expect(physicalSpan.centerMm).toBeCloseTo(0, 6)
+    expect(presentedSpan.centerMm).toBeCloseTo(0, 6)
   })
 })

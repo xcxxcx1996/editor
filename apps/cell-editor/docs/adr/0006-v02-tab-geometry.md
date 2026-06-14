@@ -34,22 +34,23 @@ policy sits naturally with it.
 
 The cell uses a fixed coordinate frame:
 
-- X — long in-plane axis (along `electrode_length`)
-- Y — stacking axis (perpendicular to layers)
-- Z — short in-plane axis (along `electrode_width`)
+- X — stacking axis (perpendicular to layers), centred on `X=0`
+- Y — cell height / short in-plane axis (along `electrode_width`, from 0 to
+  `electrode_width`)
+- Z — long in-plane axis (along `electrode_length`)
 
 For each physical collector instance, when its `tab_length >= 1` mm the
 renderer adds a single box mesh per instance with:
 
 - size: `tab_length` × collector thickness × `tab_width` — the tab shares the
-  collector's Y thickness and its width runs along the cell width axis
-- centre X: `±(electrode_length/2 + tab_length/2)` where `+` is cathode,
+  collector's X thickness and its width runs along the cell width axis
+- centre X: the collector instance's X centre
+- centre Y: `tab_y_coordinate`, measured in the cell's 0-to-`electrode_width`
+  height frame; a centred tab stores `tab_y_coordinate = electrode_width/2`
+- centre Z: `±(electrode_length/2 + tab_length/2)` where `+` is cathode,
   `-` is anode (per `cc_position = "opposite"`)
-- centre Y: the collector instance's Y centre
-- centre Z: `tab_y_coordinate - electrode_width/2`, so a centred tab stores
-  `tab_y_coordinate = electrode_width/2`
 
-`cc_position = "same"` would shift both tabs to the same X side; deferred
+`cc_position = "same"` would shift both tabs to the same Z side; deferred
 to v0.3. v0.2 hardcodes `"opposite"` in the rendering logic.
 
 ### Default values

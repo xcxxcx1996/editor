@@ -31,7 +31,7 @@ const input = {
 }
 
 describe('presentation thickness', () => {
-  test('toggles between real thickness and Y x 20', () => {
+  test('toggles between real thickness and X x 20', () => {
     setPresentationThicknessScale(EXAGGERATED_THICKNESS_SCALE)
     expect(getPresentationThicknessScale()).toBe(EXAGGERATED_THICKNESS_SCALE)
     togglePresentationThicknessScale()
@@ -45,7 +45,7 @@ describe('presentation thickness', () => {
     expect(presented[0]?.thicknessMm).toBe(
       (physical[0]?.thicknessMm ?? 0) * EXAGGERATED_THICKNESS_SCALE,
     )
-    expect(physical[0]?.centerYMm).not.toBe(presented[0]?.centerYMm)
+    expect(physical[0]?.centerXMm).not.toBe(presented[0]?.centerXMm)
   })
 
   test('toggles exploded presentation independently of thickness scale', () => {

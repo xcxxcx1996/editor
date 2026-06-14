@@ -18,20 +18,20 @@ import { useEffect, useMemo } from 'react'
 import {
   DoubleSide,
   Float32BufferAttribute,
+  type Material,
+  type Mesh,
   OrthographicCamera,
   PlaneGeometry,
   Vector3,
-  type Material,
-  type Mesh,
 } from 'three'
 import { type CellStructureNode, resolveCellStructure } from '@/src/lib/cell-structure'
-import { totalStackHeight } from '@/src/lib/derived'
 import {
   type PredictionSimulationResult,
   usePredictionResult,
   usePredictions,
 } from '@/src/lib/predictions/use-predictions'
 import { resolveCellStackContext } from '@/src/lib/resolve-templates'
+import { buildStackLayout, computePresentationStackSpanMm } from '@/src/lib/stack-layout'
 import { mmToMeters } from '@/src/lib/units'
 
 type TimeSeriesMetric = {
@@ -404,7 +404,9 @@ export function CellSimulationJobsPanel({
                 </p>
                 <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground">
                   <span>{formatPredictionDate(prediction.created_at)}</span>
-                  <span>{formatPredictionDate(prediction.finished_at ?? prediction.updated_at)}</span>
+                  <span>
+                    {formatPredictionDate(prediction.finished_at ?? prediction.updated_at)}
+                  </span>
                 </div>
               </button>
             )
@@ -594,7 +596,8 @@ export function CellSimulationResultsPanel({
     [result?.simulationResult],
   )
   const jobs = resultJob ? [resultJob] : state.activePredictionId ? [] : SIMULATION_JOBS
-  const active = jobs.length > 0 ? resolveActive(state.activeJobId, state.activeMetricId, jobs) : null
+  const active =
+    jobs.length > 0 ? resolveActive(state.activeJobId, state.activeMetricId, jobs) : null
   const job = active?.job
   const metric = active?.metric
 
@@ -660,7 +663,9 @@ export function CellSimulationResultsPanel({
             {resultError ??
               result?.data?.error_message ??
               result?.resultError ??
-              (resultLoading ? 'Loading simulation result JSON...' : 'No simulation result JSON loaded.')}
+              (resultLoading
+                ? 'Loading simulation result JSON...'
+                : 'No simulation result JSON loaded.')}
           </div>
         ) : (
           <>
@@ -732,7 +737,7 @@ export function CellSimulationResultsPanel({
                 <div>
                   <h3 className="font-semibold text-sm">{metric.label}</h3>
                   <p className="text-[11px] text-muted-foreground">
-                    {metric.kind === 'time-series' ? 'Panel-only 2D chart' : 'Y slice field map'}
+                    {metric.kind === 'time-series' ? 'Panel-only 2D chart' : 'X slice field map'}
                   </p>
                 </div>
                 <button
@@ -756,8 +761,8 @@ export function CellSimulationResultsPanel({
                   </div>
                   <div className="h-2 rounded-full bg-gradient-to-r from-[#60a5fa] via-[#34d399] to-[#f97316]" />
                   <p className="mt-3 text-[11px] text-muted-foreground">
-                    The 3D canvas renders one X-Z section at the selected Y height. Time controls
-                    the field values on that section.
+                    The 3D canvas renders one Y-Z section at the selected X depth. Time controls the
+                    field values on that section.
                   </p>
                 </div>
               )}
@@ -765,11 +770,11 @@ export function CellSimulationResultsPanel({
               {metric.kind === 'field' ? (
                 <div className="mt-3 grid gap-1">
                   <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-muted-foreground">Y slice height</span>
+                    <span className="text-muted-foreground">X slice depth</span>
                     <span className="font-semibold">{Math.round(state.sliceRatio * 100)}%</span>
                   </div>
                   <input
-                    aria-label="Y slice height"
+                    aria-label="X slice depth"
                     className="accent-[#facc15]"
                     max={1}
                     min={0}
@@ -817,18 +822,54 @@ function useCellDimensions() {
     const structure = resolveCellStructure(sceneNodes)
     const stackNode = structure.stackId ? sceneNodes[structure.stackId] : null
     if (stackNode?.type !== 'stack') {
-      return { lengthM: 0.8, widthM: 0.42, heightM: 0.12, centerY: 0.06 }
+      return {
+        centerX: 0,
+        centerY: 0.21,
+        lengthM: 0.8,
+        maxX: 0.06,
+        minX: -0.06,
+        stackM: 0.12,
+        widthM: 0.42,
+      }
     }
 
     const context = resolveCellStackContext(nodes as Record<string, unknown>, stackNode as never)
-    if (!context) return { lengthM: 0.8, widthM: 0.42, heightM: 0.12, centerY: 0.06 }
-    const heightM = Math.max(mmToMeters(totalStackHeight(context.thicknessInput)), 0.02)
+    if (!context) {
+      return {
+        centerX: 0,
+        centerY: 0.21,
+        lengthM: 0.8,
+        maxX: 0.06,
+        minX: -0.06,
+        stackM: 0.12,
+        widthM: 0.42,
+      }
+    }
+    const layers = buildStackLayout(
+      {
+        cathode: context.templates.cathode.id,
+        separator: context.templates.separator.id,
+        anode: context.templates.anode.id,
+        'cathode-current-collector': context.templates['cathode-current-collector'].id,
+        'anode-current-collector': context.templates['anode-current-collector'].id,
+      },
+      context.thicknessInput,
+    )
+    const stackSpan = computePresentationStackSpanMm(layers, 1, 0)
+    const stackM = Math.max(mmToMeters(stackSpan.spanMm), 0.02)
+    const centerX = mmToMeters(stackSpan.centerMm)
+    const minX = centerX - stackM / 2
+    const maxX = centerX + stackM / 2
+    const widthM = mmToMeters(context.cell.electrode_width)
 
     return {
+      centerX,
+      centerY: widthM / 2,
       lengthM: mmToMeters(context.cell.electrode_length),
-      widthM: mmToMeters(context.cell.electrode_width),
-      heightM,
-      centerY: heightM / 2,
+      maxX,
+      minX,
+      stackM,
+      widthM,
     }
   }, [nodes])
 }
@@ -913,7 +954,7 @@ function SimulationSliceCameraFrame() {
   const invalidate = useThree((state) => state.invalidate)
 
   useEffect(() => {
-    const center = new Vector3(0, dimensions.centerY, 0)
+    const center = new Vector3(dimensions.centerX, dimensions.centerY, 0)
     const direction = new Vector3(1, 0.7, 1).normalize()
     const distance = Math.max(dimensions.lengthM, dimensions.widthM, 1) * 2.2
     const position = center.clone().addScaledVector(direction, distance)
@@ -935,7 +976,7 @@ function SimulationSliceCameraFrame() {
       const viewWidth = camera.right - camera.left
       const viewHeight = camera.top - camera.bottom
       const targetWidth = Math.max(dimensions.lengthM * 1.45, 0.001)
-      const targetHeight = Math.max(dimensions.widthM * 1.45, dimensions.heightM * 8, 0.001)
+      const targetHeight = Math.max(dimensions.widthM * 1.45, dimensions.stackM * 8, 0.001)
       const nextZoom = Math.max(1, Math.min(viewWidth / targetWidth, viewHeight / targetHeight))
       camera.zoom = nextZoom
       camera.updateProjectionMatrix()
@@ -958,34 +999,34 @@ function SimulationField({
   sliceRatio: number
 }) {
   const dimensions = useCellDimensions()
-  const sliceY = Math.max(0.002, dimensions.heightM * sliceRatio)
+  const sliceX = dimensions.minX + dimensions.stackM * sliceRatio
   const frame = closestFieldFrame(metric, currentTime)
   const geometry = useMemo(() => {
-    const xSegments = 96
+    const ySegments = 48
     const zSegments = 48
     const nextGeometry = new PlaneGeometry(
       dimensions.lengthM,
       dimensions.widthM,
-      xSegments,
       zSegments,
+      ySegments,
     )
     const [min, max] = metric.range
-    const scaleX = dimensions.lengthM / 0.96
-    const scaleZ = dimensions.widthM / 0.52
-    const sampleY = 0.08 + sliceRatio * 0.096
+    const scaleY = dimensions.widthM / 0.52
+    const scaleZ = dimensions.lengthM / 0.96
+    const sampleX = -0.44 + sliceRatio * 0.88
     const colors: number[] = []
 
-    for (let z = 0; z <= zSegments; z += 1) {
-      for (let x = 0; x <= xSegments; x += 1) {
-        const xRatio = x / xSegments
+    for (let y = 0; y <= ySegments; y += 1) {
+      for (let z = 0; z <= zSegments; z += 1) {
+        const yRatio = y / ySegments
         const zRatio = z / zSegments
-        const worldX = (xRatio - 0.5) * dimensions.lengthM
-        const worldZ = (zRatio - 0.5) * dimensions.widthM
+        const worldY = yRatio * dimensions.widthM
+        const worldZ = (zRatio - 0.5) * dimensions.lengthM
         const value = sampleFieldValue(
           frame.points,
           {
-            x: worldX / scaleX,
-            y: sampleY,
+            x: sampleX,
+            y: worldY / scaleY,
             z: worldZ / scaleZ,
           },
           min,
@@ -1004,9 +1045,9 @@ function SimulationField({
 
   return (
     <group userData={{ simulationOverlay: true }}>
-      <mesh position={[0, dimensions.centerY, 0]}>
+      <mesh position={[dimensions.centerX, dimensions.centerY, 0]}>
         <boxGeometry
-          args={[dimensions.lengthM * 1.04, dimensions.heightM * 1.5, dimensions.widthM * 1.04]}
+          args={[dimensions.stackM * 1.5, dimensions.widthM * 1.04, dimensions.lengthM * 1.04]}
         />
         <meshBasicMaterial
           color="#a5b4fc"
@@ -1016,22 +1057,30 @@ function SimulationField({
           transparent
         />
       </mesh>
-      <mesh position={[0, sliceY, 0]} renderOrder={999} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh
+        position={[sliceX, dimensions.centerY, 0]}
+        renderOrder={999}
+        rotation={[0, Math.PI / 2, 0]}
+      >
         <planeGeometry args={[dimensions.lengthM * 1.04, dimensions.widthM * 1.04]} />
         <meshBasicMaterial
           color="#facc15"
           depthTest={false}
           depthWrite={false}
-          opacity={0.1}
+          opacity={0.12}
           transparent
         />
       </mesh>
-      <mesh position={[0, sliceY + 0.004, 0]} renderOrder={1000} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh
+        position={[sliceX, dimensions.centerY, 0]}
+        renderOrder={1000}
+        rotation={[0, Math.PI / 2, 0]}
+      >
         <primitive attach="geometry" object={geometry} />
         <meshBasicMaterial
           depthTest={false}
           depthWrite={false}
-          opacity={1}
+          opacity={0.58}
           side={DoubleSide}
           transparent
           vertexColors

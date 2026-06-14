@@ -1,7 +1,7 @@
 'use client'
 
 import { cn } from '@pascal-app/editor'
-import { Loader2, Plus, Sparkles, Target, Trash2, X, Zap } from 'lucide-react'
+import { Loader2, Plus, Sparkles, Goal, Trash2, X, Zap } from 'lucide-react'
 import { type FormEvent, type ReactNode, useMemo, useState } from 'react'
 import { useDesignGoals } from '@/src/lib/projects/use-design-goals'
 import type { DesignConstraint, DesignGoal, GoalDraft, WorkCondition } from '@/src/lib/projects/types'
@@ -515,7 +515,7 @@ export function CellDesignGoalsPanel({
         <header className="flex h-13 shrink-0 items-center justify-between border-border/60 border-b px-3">
           <div className="flex min-w-0 items-center gap-2">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#86efac]/14 text-[#bbf7d0]">
-              <Target className="h-4.5 w-4.5" />
+              <Goal className="h-4.5 w-4.5" />
             </div>
             <div className="min-w-0">
               <h2 className="truncate font-semibold text-sm">Design Goals</h2>

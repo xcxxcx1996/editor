@@ -4,6 +4,7 @@ import { useRegistry, useScene } from '@pascal-app/core'
 import { createDefaultMaterial, glassMaterial, useNodeEvents, useViewer } from '@pascal-app/viewer'
 import { useMemo, useRef } from 'react'
 import type { Group } from 'three'
+import { layerBoxArgs } from '@/src/lib/cell-world-axes'
 import { LAYER_COLORS } from '@/src/lib/colors'
 import {
   EXPLODED_LAYER_GAP_MM,
@@ -72,12 +73,14 @@ function TemplateLayerGroup({
   lengthM,
   cellWidthMm,
   widthM,
+  totalLayerCount,
 }: {
   template: TemplateNode
   layers: PhysicalLayer[]
   lengthM: number
   cellWidthMm: number
   widthM: number
+  totalLayerCount: number
 }) {
   const ref = useRef<Group>(null!)
   const shading = useViewer((s) => s.shading)
@@ -87,8 +90,13 @@ function TemplateLayerGroup({
   const handlers = useNodeEvents(template as never, template.type as never)
   const presentationLayers = useMemo(
     () =>
-      buildStackPresentationLayout(layers, thicknessScale, exploded ? EXPLODED_LAYER_GAP_MM : 0),
-    [exploded, layers, thicknessScale],
+      buildStackPresentationLayout(
+        layers,
+        thicknessScale,
+        exploded ? EXPLODED_LAYER_GAP_MM : 0,
+        totalLayerCount,
+      ),
+    [exploded, layers, thicknessScale, totalLayerCount],
   )
   const tabGeometry = useMemo(
     () => resolveCollectorTabGeometry(template, cellWidthMm / 2),
@@ -107,32 +115,26 @@ function TemplateLayerGroup({
     <group ref={ref}>
       {presentationLayers.map((layer, index) => {
         const thicknessM = mmToMeters(layer.thicknessMm)
-        const centerY = mmToMeters(layer.centerYMm)
+        const centerX = mmToMeters(layer.centerXMm)
         const layerLengthM =
           layer.kind === 'separator' ? lengthM + mmToMeters(SEPARATOR_LENGTH_OVERHANG_MM) : lengthM
         const tabLengthM = tabGeometry ? mmToMeters(tabGeometry.lengthMm) : 0
         const tabWidthM = tabGeometry ? mmToMeters(tabGeometry.widthMm) : 0
-        const tabCenterX = tabGeometry ? tabGeometry.xSign * (lengthM / 2 + tabLengthM / 2) : 0
-        const tabCenterZ = tabGeometry ? mmToMeters(tabGeometry.yCoordinateMm - cellWidthMm / 2) : 0
+        const tabCenterZ = tabGeometry ? tabGeometry.xSign * (lengthM / 2 + tabLengthM / 2) : 0
+        const tabCenterY = tabGeometry ? mmToMeters(tabGeometry.yCoordinateMm) : 0
         return (
           <group key={`${layer.kind}-${index}`}>
-            <mesh position={[0, centerY, 0]} {...handlers}>
-              <boxGeometry
-                args={[
-                  Math.max(layerLengthM, 1e-4),
-                  Math.max(thicknessM, 1e-4),
-                  Math.max(widthM, 1e-4),
-                ]}
-              />
+            <mesh position={[centerX, widthM / 2, 0]} {...handlers}>
+              <boxGeometry args={layerBoxArgs(layerLengthM, widthM, thicknessM)} />
               <primitive attach="material" object={material} />
             </mesh>
             {tabGeometry && tabGeometry.lengthMm >= 1 && (
-              <mesh position={[tabCenterX, centerY, tabCenterZ]} {...handlers}>
+              <mesh position={[centerX, tabCenterY, tabCenterZ]} {...handlers}>
                 <boxGeometry
                   args={[
-                    Math.max(tabLengthM, 1e-4),
                     Math.max(thicknessM, 1e-4),
                     Math.max(tabWidthM, 1e-4),
+                    Math.max(tabLengthM, 1e-4),
                   ]}
                 />
                 <primitive attach="material" object={material} />
@@ -199,6 +201,7 @@ const StackRenderer = ({ node }: { node: StackNode }) => {
           layers={layers}
           lengthM={lengthM}
           template={template}
+          totalLayerCount={layout.length}
           widthM={widthM}
         />
       ))}

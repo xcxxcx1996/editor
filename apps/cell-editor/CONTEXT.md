@@ -13,7 +13,7 @@ the **overall geometry** that applies to every layer inside it:
 via its child Stack.
 
 ### Stack
-A **layered (Z-stacked) cell structure**. The repeating unit of a
+A **layered (X-stacked) cell structure**. The repeating unit of a
 layered cell. Records the **layer count N**. The layer order inside one
 stack unit is **fixed in code** — see ADR-0003.
 
@@ -76,20 +76,20 @@ rest are deferred to v0.2+ (see ADR-0005).
 
 ### Tab
 A protrusion that extends outward from a current collector foil along the
-X axis (the long in-plane axis). Carries current out of the cell to an
+Z axis (the long in-plane axis). Carries current out of the cell to an
 external terminal.
 
-- `tab_length` — extent of the tab along X (outward from the collector edge)
-- `tab_width` — extent of the tab along Z (the cell width direction),
+- `tab_length` — extent of the tab along Z (outward from the collector edge)
+- `tab_width` — extent of the tab along Y (the cell width direction),
   matching the Cell's `electrode_width` axis
 - `tab_y_coordinate` — position of the tab centre along the cell width
-  direction, measured from one width edge; centred tabs use
+  direction, measured from `Y=0`; centred tabs use
   `electrode_width / 2`
 
 ### Tab position (`cc_position`)
-How the two collectors' tabs are arranged along X:
-- `"opposite"` — anode tab extends along -X, cathode tab extends along +X
-- `"same"` — both tabs extend along the same X direction (deferred to v0.3)
+How the two collectors' tabs are arranged along Z:
+- `"opposite"` — anode tab extends along -Z, cathode tab extends along +Z
+- `"same"` — both tabs extend along the same Z direction (deferred to v0.3)
 
 ### Material properties (v0.1, displayed on cathode/anode panels)
 
@@ -125,9 +125,15 @@ Single repeating unit:
 (Computed by the renderer from template parameters. Not stored.)
 
 ### Stacking axis
-The axis perpendicular to the layers' flat faces. Three.js **Y axis**.
-Layers stack along +Y from the cell's geometric centre
-(`-totalHeight/2` to `+totalHeight/2`).
+The axis perpendicular to the layers' flat faces. Three.js **X axis**.
+Layers are centred on `X=0` and span from `-total_stack_height/2` to
+`+total_stack_height/2`. Presentation thickness exaggeration and exploded
+spacing also apply along X while preserving that centred frame.
+
+### Cell height axis
+The cell height axis is Three.js **Y axis**, matching `electrode_width`.
+It is not centre-symmetric: the bottom edge is `Y=0`, the top edge is
+`Y=electrode_width`, and the geometric centre is `Y=electrode_width/2`.
 
 ## Interaction
 

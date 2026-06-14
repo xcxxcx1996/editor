@@ -1,4 +1,4 @@
-import { BatteryCharging, Box, LogOut, Target, Zap } from 'lucide-react'
+import { BatteryCharging, Box, LogOut, Goal, Zap } from 'lucide-react'
 import Link from 'next/link'
 import { CreateProjectButton } from '@/components/create-project-button'
 import { createClient } from '@/src/lib/supabase/server'
@@ -72,7 +72,7 @@ export default async function ProjectsPage() {
           </div>
           <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
             <div className="flex items-center gap-2 text-sm">
-              <Target className="h-4 w-4 text-[#86efac]" />
+              <Goal className="h-4 w-4 text-[#86efac]" />
               <span className="font-semibold">{items.length} projects</span>
             </div>
             <p className="mt-2 text-muted-foreground text-xs leading-5">

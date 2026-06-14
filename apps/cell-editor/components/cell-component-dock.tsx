@@ -4,14 +4,13 @@ import { type AnyNodeId, useScene } from '@pascal-app/core'
 import { cn } from '@pascal-app/editor'
 import { useViewer } from '@pascal-app/viewer'
 import {
-  Layers3,
+  ChevronsUpDown,
+  Layers,
+  LayersMinus,
+  LayersPlus,
   Maximize,
-  Minus,
-  Plus,
-  Rows3,
-  SquareDashed,
-  ToggleLeft,
-  ToggleRight,
+  Scale3d,
+  TableRowsSplit,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -30,27 +29,15 @@ import {
   usePresentationThicknessScale,
 } from '@/src/lib/presentation-thickness'
 
-function PolarityIcon({ polarity }: { polarity: 'positive' | 'negative' }) {
-  return (
-    <span className="flex h-5 w-5 items-center justify-center rounded-[4px] border border-current">
-      {polarity === 'positive' ? (
-        <Plus className="h-3.5 w-3.5" />
-      ) : (
-        <Minus className="h-3.5 w-3.5" />
-      )}
-    </span>
-  )
-}
-
 function CollectorIcon({ label }: { label: string }) {
   return <span className="font-semibold text-[11px] leading-none tracking-[0.02em]">{label}</span>
 }
 
 function iconForAction(id: CellComponentActionId, label: string): ReactNode {
-  if (id === 'cell') return <Rows3 className="h-4.5 w-4.5" />
-  if (id === 'cathode') return <PolarityIcon polarity="positive" />
-  if (id === 'anode') return <PolarityIcon polarity="negative" />
-  if (id === 'separator') return <SquareDashed className="h-4.5 w-4.5" />
+  if (id === 'cell') return <Layers className="h-4.5 w-4.5" />
+  if (id === 'cathode') return <LayersPlus className="h-4.5 w-4.5" />
+  if (id === 'anode') return <LayersMinus className="h-4.5 w-4.5" />
+  if (id === 'separator') return <TableRowsSplit className="h-4.5 w-4.5" />
   return <CollectorIcon label={label} />
 }
 
@@ -149,10 +136,10 @@ export function CellComponentDock({
             : 'text-muted-foreground hover:bg-white/8 hover:text-foreground',
         )}
         onClick={handleToggleExploded}
-        title="Toggle exploded stack spacing"
+        title="Toggle exploded stack spacing (along X)"
         type="button"
       >
-        <Layers3 className="h-4.5 w-4.5" />
+        <ChevronsUpDown className="h-4.5 w-4.5" />
         <span className="-right-1 -bottom-1 absolute rounded bg-black/55 px-1 py-0.5 font-semibold text-[9px] text-white/70 leading-none">
           E
         </span>
@@ -167,16 +154,12 @@ export function CellComponentDock({
             : 'text-muted-foreground hover:bg-white/8 hover:text-foreground',
         )}
         onClick={handleToggleThickness}
-        title="Toggle stack thickness presentation (Y x 20)"
+        title="Toggle stack thickness presentation (X x 20)"
         type="button"
       >
-        {isExaggerated ? (
-          <ToggleRight className="h-4.5 w-4.5" />
-        ) : (
-          <ToggleLeft className="h-4.5 w-4.5" />
-        )}
+        <Scale3d className="h-4.5 w-4.5" />
         <span className="-right-1 -bottom-1 absolute rounded bg-black/55 px-1 py-0.5 font-semibold text-[9px] text-white/70 leading-none">
-          Y
+          X
         </span>
       </button>
 
