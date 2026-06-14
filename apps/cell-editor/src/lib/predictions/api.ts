@@ -10,6 +10,7 @@ export const predictionCreateSchema = z
     label: z.string().trim().max(120).optional(),
     metadata: z.record(z.string(), z.unknown()).optional(),
     name: z.string().trim().min(1).max(120).optional(),
+    project_id: z.string().uuid().optional(),
     scene: z.unknown().optional(),
     simulation_config: z.unknown().optional(),
     simulation_configs: z.unknown().optional(),

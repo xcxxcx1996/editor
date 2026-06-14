@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
   const limit = parseLimit(request.nextUrl.searchParams)
   const offset = parseOffset(request.nextUrl.searchParams)
   const status = request.nextUrl.searchParams.get('status')
+  const projectId = request.nextUrl.searchParams.get('project_id')
 
   let query = auth.context.supabase
     .from('prediction_job')
@@ -30,6 +31,7 @@ export async function GET(request: NextRequest) {
     .range(offset, offset + limit - 1)
 
   if (status) query = query.eq('status', status)
+  if (projectId) query = query.eq('project_id', projectId)
 
   const { count, data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -69,6 +71,7 @@ export async function POST(request: NextRequest) {
       cell_design: cellDesign,
       label: parsed.data.label ?? null,
       name: parsed.data.name ?? parsed.data.label ?? 'Cell prediction',
+      project_id: parsed.data.project_id ?? null,
       simulation_config: parsed.data.simulation_config ?? parsed.data.simulation_configs ?? {},
       status: 'pending',
       user_id: auth.context.user.id,

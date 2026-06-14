@@ -73,6 +73,7 @@ export type PredictionCreateInput = {
   input?: unknown
   label?: string | null
   name?: string | null
+  project_id?: string | null
   scene?: unknown
   simulation_config?: unknown
   simulation_configs?: unknown
@@ -81,6 +82,7 @@ export type PredictionCreateInput = {
 type UsePredictionsOptions = {
   limit?: number
   pollIntervalMs?: number
+  projectId?: string
   status?: string
 }
 
@@ -136,6 +138,7 @@ async function loadSimulationResult(
 export function usePredictions({
   limit = 50,
   pollIntervalMs = 3000,
+  projectId,
   status,
 }: UsePredictionsOptions = {}) {
   const supabase = useMemo(() => createClient(), [])
@@ -163,6 +166,7 @@ export function usePredictions({
         .limit(limit)
 
       if (status) query = query.eq('status', status)
+      if (projectId) query = query.eq('project_id', projectId)
 
       const { data, error: queryError } = await query
       if (queryError) throw queryError
@@ -173,7 +177,7 @@ export function usePredictions({
     } finally {
       setLoading(false)
     }
-  }, [limit, status, supabase])
+  }, [limit, projectId, status, supabase])
 
   const createPrediction = useCallback(
     async (input: PredictionCreateInput) => {
@@ -195,6 +199,7 @@ export function usePredictions({
           cell_design: cellDesign,
           label: input.label ?? null,
           name: input.name ?? input.label ?? 'Cell prediction',
+          project_id: input.project_id ?? projectId ?? null,
           simulation_config: input.simulation_config ?? input.simulation_configs ?? {},
           status: 'pending',
           user_id: user.id,
@@ -206,7 +211,7 @@ export function usePredictions({
       await reload()
       return data as PredictionRecord
     },
-    [reload, supabase],
+    [projectId, reload, supabase],
   )
 
   useEffect(() => {

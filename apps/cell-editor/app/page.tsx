@@ -1,4 +1,3 @@
-import { CellEditorShell } from '@/components/cell-editor-shell'
 import { createClient } from '@/src/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
@@ -7,14 +6,14 @@ export default async function HomePage() {
   try {
     supabase = await createClient()
   } catch {
-    redirect('/login?next=/')
+    redirect('/login?next=/projects')
   }
 
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user) redirect('/login?next=/')
+  if (!user) redirect('/login?next=/projects')
 
-  return <CellEditorShell />
+  redirect('/projects')
 }

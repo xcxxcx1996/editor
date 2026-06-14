@@ -1,4 +1,5 @@
-import { generateId, type SceneGraph } from '@pascal-app/core'
+import type { SceneGraph } from '@pascal-app/core/clone-scene-graph'
+import { generateId } from '@pascal-app/core/schema'
 import type { AnodeNode } from '@/src/plugin/anode/schema'
 import type { AnodeCurrentCollectorNode } from '@/src/plugin/anode-current-collector/schema'
 import type { CathodeNode } from '@/src/plugin/cathode/schema'

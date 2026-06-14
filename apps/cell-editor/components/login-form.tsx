@@ -11,7 +11,7 @@ type LoginMode = 'magic-link' | 'password'
 export function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const nextPath = searchParams.get('next') || '/'
+  const nextPath = searchParams.get('next') || '/projects'
   const redirectTo = useMemo(() => {
     if (typeof window === 'undefined') return undefined
     const url = new URL('/auth/callback', window.location.origin)

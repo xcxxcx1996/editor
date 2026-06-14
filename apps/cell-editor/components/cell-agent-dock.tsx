@@ -174,10 +174,12 @@ export function CellAgentDock({
   embedded = false,
   onClose,
   onFit,
+  projectId,
 }: {
   embedded?: boolean
   onClose?: () => void
   onFit: () => void
+  projectId?: string
 }) {
   const [expanded, setExpanded] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -195,7 +197,7 @@ export function CellAgentDock({
   const nodes = useScene((s) => s.nodes)
   const sceneNodes = nodes as unknown as Record<string, CellStructureNode>
   const structure = useMemo(() => resolveCellStructure(sceneNodes), [sceneNodes])
-  const { createPrediction } = usePredictions({ limit: 20 })
+  const { createPrediction } = usePredictions({ limit: 20, projectId })
   const activeProviderLabel =
     settings.provider === 'openai'
       ? 'OpenAI-compatible'
@@ -221,6 +223,7 @@ export function CellAgentDock({
       cell_design: cellDesign,
       label: title,
       name: title,
+      project_id: projectId,
       simulation_config: {
         duration: 60,
         conditions: [
@@ -238,7 +241,7 @@ export function CellAgentDock({
     const task: AgentTask = { id: nextId(), title, status: 'submitted' }
     setTasks((current) => [task, ...current].slice(0, 4))
     return `Simulation task submitted: ${title} (${prediction.id}).`
-  }, [createPrediction])
+  }, [createPrediction, projectId])
 
   const runLocalCommand = useCallback(
     async (input: string) => {

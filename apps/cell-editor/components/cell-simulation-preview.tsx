@@ -307,12 +307,14 @@ export function CellSimulationJobsPanel({
   embedded = false,
   onClose,
   onSelectJob,
+  projectId,
 }: {
   embedded?: boolean
   onClose: () => void
   onSelectJob: (jobId: string, metricId: string) => void
+  projectId?: string
 }) {
-  const { error, loading, predictions } = usePredictions({ limit: 50 })
+  const { error, loading, predictions } = usePredictions({ limit: 50, projectId })
 
   return (
     <section

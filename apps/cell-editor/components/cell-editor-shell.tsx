@@ -4,11 +4,13 @@ import { type SceneGraph, useScene, validateBuildJson } from '@pascal-app/core'
 import { cn, Grid } from '@pascal-app/editor'
 import { type OutlineStyle, useViewer, Viewer } from '@pascal-app/viewer'
 import { CameraControls } from '@react-three/drei'
-import { Bot, ChevronLeft, ChevronsRight, ListChecks } from 'lucide-react'
+import { Bot, ChevronLeft, ChevronsRight, ListChecks, Target } from 'lucide-react'
+import Link from 'next/link'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { CellAgentDock } from '@/components/cell-agent-dock'
 import { CellCameraController } from '@/components/cell-camera-controller'
 import { CellComponentDock } from '@/components/cell-component-dock'
+import { CellDesignGoalsPanel } from '@/components/cell-design-goals-panel'
 import { CellPanelManager } from '@/components/cell-panel-manager'
 import { CellSelectionManager } from '@/components/cell-selection-manager'
 import {
@@ -27,9 +29,9 @@ import {
 import {
   applyCellSceneDefaults,
   createDefaultCellScene,
-  loadCellSceneFromLocalStorage,
   saveCellSceneToLocalStorage,
 } from '@/src/lib/defaults'
+import type { DesignGoal } from '@/src/lib/projects/types'
 import {
   getExplodedPresentation,
   getPresentationThicknessScale,
@@ -49,10 +51,18 @@ const CELL_SELECTED_STYLE: OutlineStyle = {
   pulse: false,
 }
 
-type SidebarMode = 'agent' | 'results'
+type SidebarMode = 'agent' | 'goals' | 'results'
 type EditorLoadingState = {
   message: string
   visible: boolean
+}
+
+type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+
+type CellEditorShellProps = {
+  initialScene: unknown
+  projectId: string
+  projectName: string
 }
 
 function EditorLoadingOverlay({ message, visible }: EditorLoadingState) {
@@ -105,6 +115,7 @@ function CellWorkspaceSidebar({
   children,
   expanded,
   onSelectAgent,
+  onSelectGoals,
   onSelectResults,
   onToggleExpanded,
 }: {
@@ -112,6 +123,7 @@ function CellWorkspaceSidebar({
   children: ReactNode
   expanded: boolean
   onSelectAgent: () => void
+  onSelectGoals: () => void
   onSelectResults: () => void
   onToggleExpanded: () => void
 }) {
@@ -127,6 +139,12 @@ function CellWorkspaceSidebar({
         </div>
 
         <div className="flex flex-col items-center gap-2">
+          <SidebarButton
+            active={activeMode === 'goals'}
+            icon={<Target className="h-5 w-5" />}
+            label="Goals"
+            onClick={onSelectGoals}
+          />
           <SidebarButton
             active={activeMode === 'agent'}
             icon={<Bot className="h-5 w-5" />}
@@ -166,7 +184,25 @@ function CellWorkspaceSidebar({
   )
 }
 
-export function CellEditorShell() {
+function resolveProjectScene(initialScene: unknown): SceneGraph {
+  if (isCellDesignJson(initialScene)) return cellDesignToSceneGraph(initialScene)
+
+  const result = validateBuildJson(initialScene)
+  if (result.ok && result.parsed && isUsableScene(result.parsed as SceneGraph)) {
+    return result.parsed as SceneGraph
+  }
+
+  return createDefaultCellScene()
+}
+
+function saveStatusLabel(status: SaveStatus) {
+  if (status === 'saving') return 'Saving'
+  if (status === 'saved') return 'Saved'
+  if (status === 'error') return 'Save failed'
+  return 'Ready'
+}
+
+export function CellEditorShell({ initialScene, projectId, projectName }: CellEditorShellProps) {
   const [fitTrigger, setFitTrigger] = useState(0)
   const [entryTrigger, setEntryTrigger] = useState(0)
   const [importError, setImportError] = useState<string | null>(null)
@@ -175,16 +211,18 @@ export function CellEditorShell() {
     visible: true,
   })
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [isSimulationPreview, setIsSimulationPreview] = useState(false)
   const [activeResultDetail, setActiveResultDetail] = useState(false)
-  const [sidebarExpanded, setSidebarExpanded] = useState(false)
-  const [sidebarMode, setSidebarMode] = useState<SidebarMode | null>(null)
+  const [sidebarExpanded, setSidebarExpanded] = useState(true)
+  const [sidebarMode, setSidebarMode] = useState<SidebarMode | null>('goals')
   const [simulationPreview, setSimulationPreview] = useState<SimulationPreviewState>(
     INITIAL_SIMULATION_PREVIEW_STATE,
   )
   const isLoadingSceneRef = useRef(false)
   const loadingHideTimeoutRef = useRef<number | null>(null)
   const loadingTimeoutRef = useRef<number | null>(null)
+  const autosaveTimeoutRef = useRef<number | null>(null)
   const previousPreviewSceneRef = useRef<SceneGraph | null>(null)
   const previewSceneJobIdRef = useRef<string | null>(null)
   const previousPresentationRef = useRef<{ exploded: boolean; thicknessScale: number } | null>(null)
@@ -226,11 +264,6 @@ export function CellEditorShell() {
     }, 1000)
   }, [])
 
-  const loadScene = useCallback((): SceneGraph => {
-    const stored = loadCellSceneFromLocalStorage()
-    return isUsableScene(stored) ? stored : createDefaultCellScene()
-  }, [])
-
   const applySceneGraph = useCallback((sceneGraph: SceneGraph, { persist = true } = {}) => {
     const sceneWithDefaults = applyCellSceneDefaults(sceneGraph)
     setImportError(null)
@@ -248,18 +281,29 @@ export function CellEditorShell() {
     if (persist) {
       saveCellSceneToLocalStorage(sceneWithDefaults)
       setHasUnsavedChanges(false)
+      setSaveStatus('saving')
+      fetch(`/api/projects/${projectId}`, {
+        body: JSON.stringify({ cell_design: sceneWithDefaults }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH',
+      })
+        .then((response) => {
+          if (!response.ok) throw new Error('Project save failed.')
+          setSaveStatus('saved')
+        })
+        .catch(() => setSaveStatus('error'))
     }
 
     requestAnimationFrame(() => {
       isLoadingSceneRef.current = false
       setEntryTrigger((n) => n + 1)
     })
-  }, [])
+  }, [projectId])
 
   useEffect(() => {
     showEditorLoading('Loading editor')
-    applySceneGraph(loadScene())
-  }, [applySceneGraph, loadScene, showEditorLoading])
+    applySceneGraph(resolveProjectScene(initialScene), { persist: false })
+  }, [applySceneGraph, initialScene, showEditorLoading])
 
   useEffect(() => {
     return () => {
@@ -269,6 +313,9 @@ export function CellEditorShell() {
       if (loadingHideTimeoutRef.current !== null) {
         window.clearTimeout(loadingHideTimeoutRef.current)
       }
+      if (autosaveTimeoutRef.current !== null) {
+        window.clearTimeout(autosaveTimeoutRef.current)
+      }
     }
   }, [])
 
@@ -277,14 +324,36 @@ export function CellEditorShell() {
       if (isLoadingSceneRef.current) return
       if (state.nodes === previous.nodes) return
       setHasUnsavedChanges(true)
-      saveCellSceneToLocalStorage({
+      const sceneGraph = {
         nodes: state.nodes,
         rootNodeIds: state.rootNodeIds,
-      } as unknown as Parameters<typeof saveCellSceneToLocalStorage>[0])
+      } as unknown as SceneGraph
+      saveCellSceneToLocalStorage(sceneGraph)
+
+      if (autosaveTimeoutRef.current !== null) {
+        window.clearTimeout(autosaveTimeoutRef.current)
+      }
+      setSaveStatus('saving')
+      autosaveTimeoutRef.current = window.setTimeout(async () => {
+        try {
+          const response = await fetch(`/api/projects/${projectId}`, {
+            body: JSON.stringify({ cell_design: applyCellSceneDefaults(sceneGraph) }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'PATCH',
+          })
+          if (!response.ok) throw new Error('Autosave failed.')
+          setHasUnsavedChanges(false)
+          setSaveStatus('saved')
+        } catch {
+          setSaveStatus('error')
+        } finally {
+          autosaveTimeoutRef.current = null
+        }
+      }, 800)
     })
 
     return unsubscribe
-  }, [])
+  }, [projectId])
 
   const handleFit = useCallback(() => {
     setFitTrigger((n) => n + 1)
@@ -422,6 +491,12 @@ export function CellEditorShell() {
     setSidebarExpanded(true)
   }, [closeSimulationPreview, isSimulationPreview])
 
+  const openGoalsSidebar = useCallback(() => {
+    if (isSimulationPreview) closeSimulationPreview()
+    setSidebarMode('goals')
+    setSidebarExpanded(true)
+  }, [closeSimulationPreview, isSimulationPreview])
+
   const openResultDetail = useCallback(
     (jobId: string, metricId: string) => {
       setSimulationPreview((current) => ({
@@ -436,6 +511,59 @@ export function CellEditorShell() {
       openSimulationPreview()
     },
     [openSimulationPreview],
+  )
+
+  const startDesignGoalsSimulation = useCallback(
+    async (goals: DesignGoal[]) => {
+      if (goals.length === 0) return
+
+      const state = useScene.getState()
+      const cellDesign = buildCellDesignFromScene(
+        applyCellSceneDefaults({
+          nodes: state.nodes,
+          rootNodeIds: state.rootNodeIds,
+        } as unknown as SceneGraph),
+      )
+      const response = await fetch('/api/predictions', {
+        body: JSON.stringify({
+          cell_design: cellDesign,
+          label: 'Design goals simulation',
+          name: 'Design goals simulation',
+          project_id: projectId,
+          simulation_config: {
+            conditions: goals.map((goal) => ({
+              ambient_temperature_c: goal.work_condition.temperature_c ?? 25,
+              cutoff_voltage_v: goal.work_condition.cutoff_voltage_v,
+              id: goal.id,
+              label: goal.label,
+              protocol: goal.work_condition.protocol ?? 'CC-CV',
+              rate: goal.work_condition.rate ?? '1C',
+              soc_pct: goal.work_condition.soc_pct,
+              type: goal.work_condition.mode ?? 'discharge',
+            })),
+            design_goals: goals.map((goal) => ({
+              constraints: goal.constraints,
+              id: goal.id,
+              label: goal.label,
+              work_condition: goal.work_condition,
+            })),
+            duration: 60,
+            source: 'design_goals',
+          },
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      })
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null
+        throw new Error(payload?.error || 'Could not start simulation.')
+      }
+
+      setSidebarMode('results')
+      setSidebarExpanded(true)
+    },
+    [projectId],
   )
 
   const backToJobs = useCallback(() => {
@@ -494,22 +622,37 @@ export function CellEditorShell() {
           activeMode={sidebarMode}
           expanded={sidebarExpanded}
           onSelectAgent={openAgentSidebar}
+          onSelectGoals={openGoalsSidebar}
           onSelectResults={openResultsSidebar}
           onToggleExpanded={() => {
             if (!sidebarExpanded && !sidebarMode) {
-              setSidebarMode('agent')
+              setSidebarMode('goals')
             }
             setSidebarExpanded((expanded) => !expanded)
           }}
         >
+          {sidebarMode === 'goals' ? (
+            <CellDesignGoalsPanel
+              embedded
+              onClose={closeSidebarPanel}
+              onStartSimulation={startDesignGoalsSimulation}
+              projectId={projectId}
+            />
+          ) : null}
           {sidebarMode === 'agent' ? (
-            <CellAgentDock embedded onClose={closeSidebarPanel} onFit={handleFit} />
+            <CellAgentDock
+              embedded
+              onClose={closeSidebarPanel}
+              onFit={handleFit}
+              projectId={projectId}
+            />
           ) : null}
           {sidebarMode === 'results' && !activeResultDetail ? (
             <CellSimulationJobsPanel
               embedded
               onClose={closeSidebarPanel}
               onSelectJob={openResultDetail}
+              projectId={projectId}
             />
           ) : null}
           {sidebarMode === 'results' && activeResultDetail ? (
@@ -530,12 +673,36 @@ export function CellEditorShell() {
         </CellWorkspaceSidebar>
         <div className="pointer-events-none absolute top-3 right-4 left-16 z-40 flex items-start justify-center">
           {!isSimulationPreview ? (
-            <CellTopDock
-              error={importError}
-              onExport={handleExport}
-              onImport={handleImport}
-              onNewScene={handleNewScene}
-            />
+            <div className="flex items-start gap-2">
+              <div className="pointer-events-auto flex h-8 items-center gap-2 rounded-lg border border-border/60 bg-background/92 px-2.5 text-foreground shadow-2xl backdrop-blur-md">
+                <Link
+                  className="font-medium text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+                  href="/projects"
+                >
+                  All projects
+                </Link>
+                <span className="text-muted-foreground/50 text-[11px]">/</span>
+                <span className="max-w-48 truncate font-semibold text-[11px]">{projectName}</span>
+                <span
+                  className={cn(
+                    'rounded-full px-1.5 py-0.5 text-[10px]',
+                    saveStatus === 'error'
+                      ? 'bg-[#fca5a5]/12 text-[#fecaca]'
+                      : hasUnsavedChanges || saveStatus === 'saving'
+                        ? 'bg-[#facc15]/12 text-[#fde68a]'
+                        : 'bg-[#86efac]/12 text-[#bbf7d0]',
+                  )}
+                >
+                  {saveStatusLabel(saveStatus)}
+                </span>
+              </div>
+              <CellTopDock
+                error={importError}
+                onExport={handleExport}
+                onImport={handleImport}
+                onNewScene={handleNewScene}
+              />
+            </div>
           ) : (
             <div />
           )}
