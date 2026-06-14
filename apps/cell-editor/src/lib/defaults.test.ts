@@ -36,6 +36,8 @@ describe('createDefaultCellScene', () => {
     expect(nodes.find((node) => node.type === 'cell')).toMatchObject({
       electrode_length: 400,
       electrode_width: 100,
+      electrolyte_concentration: 1,
+      electrolyte_level_ratio: 0.5,
     })
     expect(nodes.find((node) => node.type === 'stack')).toMatchObject({
       number_of_layers: 27,
@@ -108,6 +110,24 @@ describe('createDefaultCellScene', () => {
 
     expect(migratedNodes.find((node) => node.type === 'cathode')?.cathode_density).toBe(2.1)
     expect(migratedNodes.find((node) => node.type === 'anode')?.anode_density).toBe(1.3)
+  })
+
+  test('fills missing electrolyte defaults', () => {
+    const scene = createDefaultCellScene()
+    const nodes = scene.nodes as Record<string, Record<string, unknown>>
+    const cell = Object.values(nodes).find((node) => node.type === 'cell')
+
+    if (cell) {
+      delete cell.electrolyte_concentration
+      delete cell.electrolyte_level_ratio
+    }
+
+    const migratedNodes = Object.values(applyCellSceneDefaults(scene).nodes) as Array<
+      Record<string, unknown>
+    >
+
+    expect(migratedNodes.find((node) => node.type === 'cell')?.electrolyte_concentration).toBe(1)
+    expect(migratedNodes.find((node) => node.type === 'cell')?.electrolyte_level_ratio).toBe(0.5)
   })
 
   test('fills missing imported material particle sizes and tab dimensions', () => {

@@ -25,6 +25,10 @@ export function applyCellSceneDefaults(scene: SceneGraph): SceneGraph {
     if (node.type === 'cell') {
       nodes[nodeId] = {
         ...node,
+        electrolyte_concentration:
+          typeof node.electrolyte_concentration === 'number' ? node.electrolyte_concentration : 1,
+        electrolyte_level_ratio:
+          typeof node.electrolyte_level_ratio === 'number' ? node.electrolyte_level_ratio : 0.5,
         cc_position: typeof node.cc_position === 'string' ? node.cc_position : 'opposite',
       }
       continue
@@ -129,6 +133,8 @@ export function createDefaultCellScene(): SceneGraph {
     metadata: {},
     electrode_length: 400,
     electrode_width: 100,
+    electrolyte_concentration: 1,
+    electrolyte_level_ratio: 0.5,
     cc_position: 'opposite',
     children: [stackId],
   }

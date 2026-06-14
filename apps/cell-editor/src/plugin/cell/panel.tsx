@@ -129,6 +129,28 @@ export function CellPanel({
           value={stack.number_of_layers}
         />
       </PanelSection>
+      <PanelSection title="Electrolyte">
+        <SliderControl
+          label="electrolyte_concentration"
+          max={5}
+          min={0}
+          onChange={(value) => handleCellUpdate({ electrolyte_concentration: value })}
+          precision={2}
+          step={0.01}
+          unit="mol/L"
+          value={cell.electrolyte_concentration}
+        />
+        <SliderControl
+          label="electrolyte_level_height"
+          max={100}
+          min={0}
+          onChange={(value) => handleCellUpdate({ electrolyte_level_ratio: value / 100 })}
+          precision={0}
+          step={1}
+          unit="%"
+          value={cell.electrolyte_level_ratio * 100}
+        />
+      </PanelSection>
       <PanelSection title="Tab Position">
         <div className="px-3 py-2">
           <div className="flex h-9 w-full items-center rounded-lg border border-border/50 bg-[#2C2C2E] p-[3px]">

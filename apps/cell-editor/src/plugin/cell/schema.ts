@@ -6,6 +6,8 @@ export const CellNode = BaseNode.extend({
   type: nodeType('cell'),
   electrode_length: z.number().positive().default(400),
   electrode_width: z.number().positive().default(100),
+  electrolyte_concentration: z.number().nonnegative().default(1),
+  electrolyte_level_ratio: z.number().min(0).max(1).default(0.5),
   cc_position: z.enum(['opposite', 'same']).default('opposite'),
   children: z.array(z.string()).default([]),
 })
