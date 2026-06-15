@@ -4,6 +4,7 @@ import { cn } from '@pascal-app/editor'
 import { Loader2, Plus, Sparkles, Goal, Trash2, X, Zap } from 'lucide-react'
 import { type FormEvent, type ReactNode, useMemo, useState } from 'react'
 import { useDesignGoals } from '@/src/lib/projects/use-design-goals'
+import { draftFromForm } from '@/src/lib/projects/design-goal-schema'
 import type { DesignConstraint, DesignGoal, GoalDraft, WorkCondition } from '@/src/lib/projects/types'
 
 type GoalFormState = {
@@ -39,11 +40,6 @@ const EMPTY_FORM: GoalFormState = {
 const FIELD_CLASS =
   'min-w-0 w-full rounded-md border border-border/60 bg-[#1f1f21] px-2 outline-none focus:border-[#facc15]/70'
 
-function numberOrUndefined(value: string) {
-  const parsed = Number.parseFloat(value)
-  return Number.isFinite(parsed) ? parsed : undefined
-}
-
 function goalToForm(goal: DesignGoal): GoalFormState {
   return {
     baseline: goal.constraints.baseline ?? '',
@@ -58,29 +54,6 @@ function goalToForm(goal: DesignGoal): GoalFormState {
     temperature_c: goal.work_condition.temperature_c?.toString() ?? '',
     unit: goal.constraints.unit ?? '',
     value: goal.constraints.value.toString(),
-  }
-}
-
-function formToDraft(form: GoalFormState): GoalDraft {
-  const work_condition: WorkCondition = {
-    cutoff_voltage_v: numberOrUndefined(form.cutoff_voltage_v),
-    mode: form.mode,
-    protocol: form.protocol.trim() || undefined,
-    rate: form.rate.trim() || undefined,
-    soc_pct: numberOrUndefined(form.soc_pct),
-    temperature_c: numberOrUndefined(form.temperature_c),
-  }
-
-  return {
-    constraints: {
-      baseline: form.baseline.trim() || undefined,
-      metric: form.metric.trim(),
-      operator: form.operator,
-      unit: form.unit.trim() || undefined,
-      value: numberOrUndefined(form.value) ?? 0,
-    },
-    label: form.label.trim(),
-    work_condition,
   }
 }
 
@@ -160,7 +133,7 @@ function GoalForm({
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (!form.label.trim() || !form.metric.trim() || !form.value.trim()) return
-    await onSubmit(formToDraft(form))
+    await onSubmit(draftFromForm(form))
     if (mode === 'create') setForm(EMPTY_FORM)
   }
 
@@ -424,7 +397,7 @@ export function CellDesignGoalsPanel({
   onStartSimulation?: (goals: DesignGoal[]) => Promise<void>
   projectId: string
 }) {
-  const { createGoal, deleteGoal, error, goals, loading, parseNaturalLanguage, updateGoal } =
+  const { createGoal, createGoals, deleteGoal, error, goals, loading, parseNaturalLanguage, updateGoal } =
     useDesignGoals(projectId)
   const [busy, setBusy] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
@@ -473,7 +446,7 @@ export function CellDesignGoalsPanel({
     try {
       const payload = await parseNaturalLanguage(magicText)
       if (payload.goals?.length) {
-        for (const draft of payload.goals) await createGoal(draft)
+        await createGoals(payload.goals)
         setMagicStatus(`Added ${payload.goals.length} parsed goal(s).`)
         setMagicText('')
       } else {

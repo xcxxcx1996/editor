@@ -1,13 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import type { DesignGoal, GoalDraft } from './types'
-
-type UseDesignGoalsState = {
-  error: string | null
-  goals: DesignGoal[]
-  loading: boolean
-}
+import { useCallback, useEffect, useMemo, useReducer } from 'react'
+import { createClient } from '@/src/lib/supabase/client'
+import { createSupabaseGoalsRepository } from './design-goals-repository'
+import { designGoalsReducer, initialDesignGoalsState } from './design-goals-state'
+import type { GoalDraft } from './types'
 
 async function readJson(response: Response) {
   const payload = (await response.json().catch(() => null)) as { error?: string } | null
@@ -18,68 +15,57 @@ async function readJson(response: Response) {
 }
 
 export function useDesignGoals(projectId: string) {
-  const [state, setState] = useState<UseDesignGoalsState>({
-    error: null,
-    goals: [],
-    loading: true,
-  })
+  const repository = useMemo(() => createSupabaseGoalsRepository(createClient()), [])
+  const [state, dispatch] = useReducer(designGoalsReducer, initialDesignGoalsState)
 
   const reload = useCallback(async () => {
-    setState((current) => ({ ...current, error: null, loading: true }))
+    dispatch({ type: 'load_start' })
     try {
-      const payload = (await readJson(
-        await fetch(`/api/projects/${projectId}/goals`, { cache: 'no-store' }),
-      )) as { data?: DesignGoal[] }
-      setState({ error: null, goals: payload.data ?? [], loading: false })
+      const goals = await repository.list(projectId)
+      dispatch({ type: 'load_success', goals })
     } catch (error) {
-      setState({
+      dispatch({
+        type: 'load_error',
         error: error instanceof Error ? error.message : 'Could not load design goals.',
-        goals: [],
-        loading: false,
       })
     }
-  }, [projectId])
+  }, [projectId, repository])
 
   const createGoal = useCallback(
     async (draft: GoalDraft) => {
-      const payload = (await readJson(
-        await fetch(`/api/projects/${projectId}/goals`, {
-          body: JSON.stringify(draft),
-          headers: { 'Content-Type': 'application/json' },
-          method: 'POST',
-        }),
-      )) as { data?: DesignGoal }
-      await reload()
-      return payload.data
+      const goal = await repository.create(projectId, draft)
+      dispatch({ type: 'merge_created', goal })
+      return goal
     },
-    [projectId, reload],
+    [projectId, repository],
+  )
+
+  const createGoals = useCallback(
+    async (drafts: GoalDraft[]) => {
+      if (drafts.length === 0) return []
+
+      const created = await Promise.all(drafts.map((draft) => repository.create(projectId, draft)))
+      dispatch({ type: 'merge_created_many', goals: created })
+      return created
+    },
+    [projectId, repository],
   )
 
   const updateGoal = useCallback(
     async (goalId: string, patch: Partial<GoalDraft>) => {
-      const payload = (await readJson(
-        await fetch(`/api/projects/${projectId}/goals/${goalId}`, {
-          body: JSON.stringify(patch),
-          headers: { 'Content-Type': 'application/json' },
-          method: 'PATCH',
-        }),
-      )) as { data?: DesignGoal }
-      await reload()
-      return payload.data
+      const goal = await repository.update(projectId, goalId, patch)
+      dispatch({ type: 'merge_updated', goal })
+      return goal
     },
-    [projectId, reload],
+    [projectId, repository],
   )
 
   const deleteGoal = useCallback(
     async (goalId: string) => {
-      await readJson(
-        await fetch(`/api/projects/${projectId}/goals/${goalId}`, {
-          method: 'DELETE',
-        }),
-      )
-      await reload()
+      await repository.delete(projectId, goalId)
+      dispatch({ type: 'merge_deleted', goalId })
     },
-    [projectId, reload],
+    [projectId, repository],
   )
 
   const parseNaturalLanguage = useCallback(
@@ -102,6 +88,7 @@ export function useDesignGoals(projectId: string) {
   return {
     ...state,
     createGoal,
+    createGoals,
     deleteGoal,
     parseNaturalLanguage,
     reload,
