@@ -1,9 +1,9 @@
 'use client'
 
 import { useScene } from '@pascal-app/core'
-import { SliderControl } from '@pascal-app/editor'
-import type { AnodeCurrentCollectorNode } from '@/src/plugin/anode-current-collector/schema'
-import type { CathodeCurrentCollectorNode } from '@/src/plugin/cathode-current-collector/schema'
+import { SearchableNumberControl } from '@/components/controls/searchable-number-control'
+import type { AnodeCurrentCollectorNode } from '@/src/plugin/anode-current-collector'
+import type { CathodeCurrentCollectorNode } from '@/src/plugin/cathode-current-collector'
 
 function useCellWidth(): number {
   return useScene((s) => {
@@ -26,12 +26,15 @@ export function CathodeTabYCoordinateField({
   const cellWidth = useCellWidth()
 
   return (
-    <SliderControl
+    <SearchableNumberControl
       label="cc_p_tab_y_coordinate"
       max={cellWidth}
       min={0}
+      nodeKind="cathode-current-collector"
       onChange={(value) => onUpdate({ cc_p_tab_y_coordinate: value })}
-      step={1}
+      precision={1}
+      sceneKey="cc_p_tab_y_coordinate"
+      step={0.1}
       unit="mm"
       value={node.cc_p_tab_y_coordinate}
     />
@@ -48,12 +51,15 @@ export function AnodeTabYCoordinateField({
   const cellWidth = useCellWidth()
 
   return (
-    <SliderControl
+    <SearchableNumberControl
       label="cc_n_tab_y_coordinate"
       max={cellWidth}
       min={0}
+      nodeKind="anode-current-collector"
       onChange={(value) => onUpdate({ cc_n_tab_y_coordinate: value })}
-      step={1}
+      precision={1}
+      sceneKey="cc_n_tab_y_coordinate"
+      step={0.1}
       unit="mm"
       value={node.cc_n_tab_y_coordinate}
     />

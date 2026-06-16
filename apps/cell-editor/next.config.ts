@@ -1,6 +1,9 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_DISABLE_SFX: 'true',
+  },
   logging: {
     browserToTerminal: true,
   },

@@ -4,12 +4,12 @@ import { z } from 'zod'
 export const CellNode = BaseNode.extend({
   id: objectId('cell'),
   type: nodeType('cell'),
-  electrode_length: z.number().positive().default(400),
-  electrode_width: z.number().positive().default(100),
-  electrolyte_concentration: z.number().nonnegative().default(1),
-  electrolyte_level_ratio: z.number().min(0).max(1).default(0.5),
-  cc_position: z.enum(['opposite', 'same']).default('opposite'),
-  children: z.array(z.string()).default([]),
+  electrode_length: z.number().positive(),
+  electrode_width: z.number().positive(),
+  electrolyte_concentration: z.number().nonnegative(),
+  electrolyte_level_ratio: z.number().min(0).max(1),
+  cc_position: z.enum(['opposite', 'same']),
+  children: z.array(z.string()),
 })
 
 export type CellNode = z.infer<typeof CellNode>

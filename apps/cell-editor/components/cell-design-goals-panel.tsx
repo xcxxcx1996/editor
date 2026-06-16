@@ -1,11 +1,16 @@
 'use client'
 
 import { cn } from '@pascal-app/editor'
-import { Loader2, Plus, Sparkles, Goal, Trash2, X, Zap } from 'lucide-react'
+import { Loader2, Plus, Sparkles, Goal, Trash2, X } from 'lucide-react'
 import { type FormEvent, type ReactNode, useMemo, useState } from 'react'
-import { useDesignGoals } from '@/src/lib/projects/use-design-goals'
+import { useDesignGoalsContext } from '@/src/lib/projects/design-goals-context'
 import { draftFromForm } from '@/src/lib/projects/design-goal-schema'
-import type { DesignConstraint, DesignGoal, GoalDraft, WorkCondition } from '@/src/lib/projects/types'
+import type {
+  DesignConstraint,
+  DesignGoal,
+  GoalDraft,
+  WorkCondition,
+} from '@/src/lib/projects/types'
 
 type GoalFormState = {
   baseline: string
@@ -78,7 +83,9 @@ function constraintSummary(constraint: DesignConstraint) {
 function FormSection({ children, title }: { children: ReactNode; title: string }) {
   return (
     <div className="grid gap-2">
-      <p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">{title}</p>
+      <p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+        {title}
+      </p>
       {children}
     </div>
   )
@@ -100,7 +107,9 @@ function FormField({
       <div className="grid min-w-0 grid-cols-[92px_minmax(0,1fr)] items-center gap-x-2 gap-y-0.5">
         <span className="text-[11px] text-muted-foreground leading-tight">{label}</span>
         <div className="min-w-0">{children}</div>
-        {hint ? <span className="col-start-2 text-[10px] text-muted-foreground/70">{hint}</span> : null}
+        {hint ? (
+          <span className="col-start-2 text-[10px] text-muted-foreground/70">{hint}</span>
+        ) : null}
       </div>
     )
   }
@@ -178,7 +187,9 @@ function GoalForm({
           >
             <input
               className={cn(FIELD_CLASS, 'h-8 text-xs')}
-              onChange={(event) => setForm((current) => ({ ...current, soc_pct: event.target.value }))}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, soc_pct: event.target.value }))
+              }
               placeholder="50"
               value={form.soc_pct}
             />
@@ -199,7 +210,10 @@ function GoalForm({
             <select
               className={cn(FIELD_CLASS, 'h-8 text-xs')}
               onChange={(event) =>
-                setForm((current) => ({ ...current, mode: event.target.value as GoalFormState['mode'] }))
+                setForm((current) => ({
+                  ...current,
+                  mode: event.target.value as GoalFormState['mode'],
+                }))
               }
               value={form.mode}
             >
@@ -228,7 +242,9 @@ function GoalForm({
           >
             <input
               className={cn(FIELD_CLASS, 'h-8 text-xs')}
-              onChange={(event) => setForm((current) => ({ ...current, protocol: event.target.value }))}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, protocol: event.target.value }))
+              }
               placeholder="CC-CV"
               value={form.protocol}
             />
@@ -245,7 +261,9 @@ function GoalForm({
           >
             <input
               className={cn(FIELD_CLASS, 'h-8 text-xs')}
-              onChange={(event) => setForm((current) => ({ ...current, metric: event.target.value }))}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, metric: event.target.value }))
+              }
               placeholder="dcir"
               required
               value={form.metric}
@@ -276,7 +294,9 @@ function GoalForm({
           >
             <input
               className={cn(FIELD_CLASS, 'h-8 text-xs')}
-              onChange={(event) => setForm((current) => ({ ...current, value: event.target.value }))}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, value: event.target.value }))
+              }
               placeholder="1.5"
               required
               value={form.value}
@@ -297,7 +317,9 @@ function GoalForm({
           >
             <input
               className={cn(FIELD_CLASS, 'h-8 text-xs')}
-              onChange={(event) => setForm((current) => ({ ...current, baseline: event.target.value }))}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, baseline: event.target.value }))
+              }
               placeholder="Optional"
               value={form.baseline}
             />
@@ -320,7 +342,11 @@ function GoalForm({
           disabled={busy || !form.label.trim() || !form.value.trim()}
           type="submit"
         >
-          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+          {busy ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Plus className="h-3.5 w-3.5" />
+          )}
           {mode === 'create' ? 'Add goal' : 'Save changes'}
         </button>
       </div>
@@ -389,24 +415,28 @@ function CreateGoalDialog({
 export function CellDesignGoalsPanel({
   embedded = false,
   onClose,
-  onStartSimulation,
   projectId,
 }: {
   embedded?: boolean
   onClose?: () => void
-  onStartSimulation?: (goals: DesignGoal[]) => Promise<void>
   projectId: string
 }) {
-  const { createGoal, createGoals, deleteGoal, error, goals, loading, parseNaturalLanguage, updateGoal } =
-    useDesignGoals(projectId)
+  const {
+    createGoal,
+    createGoals,
+    deleteGoal,
+    error,
+    goals,
+    loading,
+    parseNaturalLanguage,
+    updateGoal,
+  } = useDesignGoalsContext()
   const [busy, setBusy] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [createFormKey, setCreateFormKey] = useState(0)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [magicText, setMagicText] = useState('')
   const [magicStatus, setMagicStatus] = useState<string | null>(null)
-  const [simulationBusy, setSimulationBusy] = useState(false)
-  const [simulationStatus, setSimulationStatus] = useState<string | null>(null)
 
   const editingGoal = useMemo(
     () => goals.find((goal) => goal.id === editingId) ?? null,
@@ -450,28 +480,14 @@ export function CellDesignGoalsPanel({
         setMagicStatus(`Added ${payload.goals.length} parsed goal(s).`)
         setMagicText('')
       } else {
-        setMagicStatus(payload.error === 'goals_nlp_not_configured' ? '后端尚未接入。' : 'No goals parsed.')
+        setMagicStatus(
+          payload.error === 'goals_nlp_not_configured' ? '后端尚未接入。' : 'No goals parsed.',
+        )
       }
     } catch (parseError) {
       setMagicStatus(parseError instanceof Error ? parseError.message : '后端尚未接入。')
     } finally {
       setBusy(false)
-    }
-  }
-
-  async function startSimulation() {
-    if (!onStartSimulation || goals.length === 0) return
-    setSimulationBusy(true)
-    setSimulationStatus(null)
-    try {
-      await onStartSimulation(goals)
-      setSimulationStatus('Simulation task submitted.')
-    } catch (simulationError) {
-      setSimulationStatus(
-        simulationError instanceof Error ? simulationError.message : 'Could not start simulation.',
-      )
-    } finally {
-      setSimulationBusy(false)
     }
   }
 
@@ -492,7 +508,9 @@ export function CellDesignGoalsPanel({
             </div>
             <div className="min-w-0">
               <h2 className="truncate font-semibold text-sm">Design Goals</h2>
-              <p className="truncate text-[11px] text-muted-foreground">Project-scoped constraints</p>
+              <p className="truncate text-[11px] text-muted-foreground">
+                Project-scoped constraints
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -504,15 +522,6 @@ export function CellDesignGoalsPanel({
             >
               <Plus className="h-3.5 w-3.5" />
               Add
-            </button>
-            <button
-              className="flex h-7 w-7 items-center justify-center rounded-md bg-[#facc15]/14 text-[#fde68a] transition-colors hover:bg-[#facc15]/22 disabled:cursor-not-allowed disabled:bg-[#2C2C2E] disabled:text-muted-foreground/45"
-              disabled={loading || simulationBusy || goals.length === 0}
-              onClick={startSimulation}
-              title={goals.length === 0 ? 'Add a design goal before simulation' : 'Start simulation'}
-              type="button"
-            >
-              {simulationBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
             </button>
             <button
               className="flex h-7 w-7 items-center justify-center rounded-md bg-[#2C2C2E] text-muted-foreground transition-colors hover:bg-[#3e3e3e] hover:text-foreground"
@@ -531,11 +540,6 @@ export function CellDesignGoalsPanel({
               {error}
             </div>
           ) : null}
-          {simulationStatus ? (
-            <div className="mb-3 rounded-lg border border-[#facc15]/25 bg-[#facc15]/10 p-3 text-[#fde68a] text-xs">
-              {simulationStatus}
-            </div>
-          ) : null}
           {loading ? (
             <div className="mb-3 rounded-lg border border-border/50 bg-white/[0.03] p-3 text-muted-foreground text-xs">
               Loading design goals...
@@ -544,7 +548,10 @@ export function CellDesignGoalsPanel({
 
           <div className="grid gap-2">
             {goals.map((goal) => (
-              <div className="rounded-lg border border-border/50 bg-white/[0.035] p-3" key={goal.id}>
+              <div
+                className="rounded-lg border border-border/50 bg-white/[0.035] p-3"
+                key={goal.id}
+              >
                 {editingId === goal.id && editingGoal ? (
                   <GoalForm
                     busy={busy}
@@ -617,7 +624,11 @@ export function CellDesignGoalsPanel({
               onClick={parseMagic}
               type="button"
             >
-              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              {busy ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" />
+              )}
               Parse
             </button>
           </div>

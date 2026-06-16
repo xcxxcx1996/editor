@@ -23,6 +23,7 @@ export type PredictionStorageReference = {
 export type PredictionResultRecord = {
   id: string
   cell_design?: unknown
+  simulation_config?: unknown
   status?: string | null
   result_uri?: string | null
   error_message?: string | null
@@ -60,11 +61,40 @@ export type PredictionSimulationResult = {
   metrics: Array<PredictionTimeSeriesMetric | PredictionFieldMetric>
 }
 
+export type SimulationTaskType = 'single_point' | 'spatial_search'
+
+export type SimulationConstraintScore = {
+  metric: string
+  operator: string
+  target: number
+  actual: number
+  satisfied: boolean
+}
+
+export type SimulationScheme = {
+  id: string
+  label: string
+  rank?: number
+  parameters?: Record<string, number>
+  cell_design: unknown
+  condition?: string
+  metrics: Array<PredictionTimeSeriesMetric | PredictionFieldMetric>
+  goals_met?: boolean
+  constraint_scores?: SimulationConstraintScore[]
+}
+
+export type SimulationResultPayload = {
+  version?: 1
+  task_type: SimulationTaskType
+  duration?: number
+  schemes: SimulationScheme[]
+}
+
 export type PredictionResultResponse = {
   data?: PredictionResultRecord
   error?: string
   resultError?: string | null
-  simulationResult?: PredictionSimulationResult | null
+  simulationResult?: SimulationResultPayload | null
   storage?: PredictionStorageReference | null
 }
 
@@ -109,29 +139,109 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
-function parseSimulationResult(value: unknown): PredictionSimulationResult {
+function parseTaskType(value: unknown): SimulationTaskType {
+  return value === 'spatial_search' ? 'spatial_search' : 'single_point'
+}
+
+function normalizeScheme(value: unknown, index: number): SimulationScheme {
+  if (!isRecord(value)) throw new Error(`Scheme ${index + 1} is not an object.`)
+  if (!Array.isArray(value.metrics)) throw new Error(`Scheme ${index + 1} is missing metrics.`)
+
+  return {
+    cell_design: value.cell_design,
+    condition: typeof value.condition === 'string' ? value.condition : undefined,
+    constraint_scores: Array.isArray(value.constraint_scores)
+      ? (value.constraint_scores as SimulationConstraintScore[])
+      : undefined,
+    goals_met: typeof value.goals_met === 'boolean' ? value.goals_met : undefined,
+    id: typeof value.id === 'string' && value.id ? value.id : `scheme-${index + 1}`,
+    label: typeof value.label === 'string' && value.label ? value.label : `Scheme ${index + 1}`,
+    metrics: value.metrics as Array<PredictionTimeSeriesMetric | PredictionFieldMetric>,
+    parameters: isRecord(value.parameters)
+      ? Object.fromEntries(
+          Object.entries(value.parameters).filter(
+            (entry): entry is [string, number] =>
+              typeof entry[1] === 'number' && Number.isFinite(entry[1]),
+          ),
+        )
+      : undefined,
+    rank: typeof value.rank === 'number' && Number.isFinite(value.rank) ? value.rank : undefined,
+  }
+}
+
+export function parseSimulationResult(
+  value: unknown,
+  fallbackCellDesign?: unknown,
+): SimulationResultPayload {
   if (!isRecord(value)) throw new Error('Result JSON is not an object.')
+
+  if (Array.isArray(value.schemes)) {
+    const taskType = parseTaskType(value.task_type)
+    const schemes = value.schemes.map(normalizeScheme)
+    if (taskType === 'spatial_search' && schemes.length === 0) {
+      throw new Error('Spatial search result JSON has no schemes.')
+    }
+
+    return {
+      duration: typeof value.duration === 'number' ? value.duration : undefined,
+      schemes,
+      task_type: taskType,
+      version: value.version === 1 ? 1 : undefined,
+    }
+  }
+
   if (!Array.isArray(value.metrics)) throw new Error('Result JSON is missing metrics.')
 
-  return value as PredictionSimulationResult
+  return {
+    duration: typeof value.duration === 'number' ? value.duration : undefined,
+    schemes: [
+      {
+        cell_design: value.cell_design ?? fallbackCellDesign,
+        condition: typeof value.condition === 'string' ? value.condition : undefined,
+        id: typeof value.id === 'string' && value.id ? value.id : 'single-point',
+        label: typeof value.label === 'string' && value.label ? value.label : 'Single point',
+        metrics: value.metrics as Array<PredictionTimeSeriesMetric | PredictionFieldMetric>,
+      },
+    ],
+    task_type: 'single_point',
+  }
+}
+
+export function getSchemesFromResult(
+  result: SimulationResultPayload | null | undefined,
+): SimulationScheme[] {
+  return result?.schemes ?? []
+}
+
+export function getDefaultSimulationScheme(
+  result: SimulationResultPayload | null | undefined,
+): SimulationScheme | null {
+  const schemes = getSchemesFromResult(result)
+  if (schemes.length === 0) return null
+  return schemes.reduce((best, scheme) => {
+    if (best.rank === undefined) return scheme.rank === undefined ? best : scheme
+    if (scheme.rank === undefined) return best
+    return scheme.rank < best.rank ? scheme : best
+  }, schemes[0]!)
 }
 
 async function loadSimulationResult(
   supabase: ReturnType<typeof createClient>,
   storage: PredictionStorageReference | null,
+  fallbackCellDesign?: unknown,
 ) {
   if (!storage) return null
 
   if (storage.bucket && storage.key) {
     const { data, error } = await supabase.storage.from(storage.bucket).download(storage.key)
     if (error) throw error
-    return parseSimulationResult(JSON.parse(await data.text()))
+    return parseSimulationResult(JSON.parse(await data.text()), fallbackCellDesign)
   }
 
   if (storage.url?.startsWith('http://') || storage.url?.startsWith('https://')) {
     const response = await fetch(storage.url, { cache: 'no-store' })
     if (!response.ok) throw new Error('Could not load prediction result JSON.')
-    return parseSimulationResult(await response.json())
+    return parseSimulationResult(await response.json(), fallbackCellDesign)
   }
 
   return null
@@ -163,7 +273,9 @@ function loadPredictionResult(
 
     const { data, error: queryError } = await supabase
       .from('prediction_job')
-      .select('id, cell_design, status, result_uri, error_message, finished_at, updated_at')
+      .select(
+        'id, cell_design, simulation_config, status, result_uri, error_message, finished_at, updated_at',
+      )
       .eq('id', predictionId)
       .single()
 
@@ -171,10 +283,10 @@ function loadPredictionResult(
 
     const record = data as PredictionResultRecord
     const storage = storageReferenceFromResultUri(record.result_uri)
-    let simulationResult: PredictionSimulationResult | null = null
+    let simulationResult: SimulationResultPayload | null = null
     let resultError: string | null = null
     try {
-      simulationResult = await loadSimulationResult(supabase, storage)
+      simulationResult = await loadSimulationResult(supabase, storage, record.cell_design)
     } catch (downloadError) {
       resultError =
         downloadError instanceof Error ? downloadError.message : 'Could not load result JSON.'

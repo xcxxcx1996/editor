@@ -10,6 +10,7 @@ export type ProjectRecord = {
   user_id: string
   name: string
   cell_design: unknown
+  simulation_search_ranges?: unknown
   created_at: string
   updated_at: string
 }

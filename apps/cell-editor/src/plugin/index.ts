@@ -1,10 +1,10 @@
 import type { AnyNodeDefinition, Plugin } from '@pascal-app/core'
-import { anodeDefinition } from './anode/definition'
-import { anodeCurrentCollectorDefinition } from './anode-current-collector/definition'
-import { cathodeDefinition } from './cathode/definition'
-import { cathodeCurrentCollectorDefinition } from './cathode-current-collector/definition'
+import { anodeDefinition } from './anode'
+import { anodeCurrentCollectorDefinition } from './anode-current-collector'
+import { cathodeDefinition } from './cathode'
+import { cathodeCurrentCollectorDefinition } from './cathode-current-collector'
 import { cellDefinition } from './cell/definition'
-import { separatorDefinition } from './separator/definition'
+import { separatorDefinition } from './separator'
 import { stackDefinition } from './stack/definition'
 
 export const cellPlugin: Plugin = {

@@ -5,10 +5,9 @@ import { useViewer } from '@pascal-app/viewer'
 import { useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import { type Camera, OrthographicCamera, Vector3 } from 'three'
-import { type CellStructureNode, resolveCellStructure } from '@/src/lib/cell-structure'
+import { resolveCellGraph } from '@/src/lib/cell-graph/resolve'
 import { resolveCellWorldDimensions } from '@/src/lib/cell-world-axes'
 import { totalStackHeight } from '@/src/lib/derived'
-import { resolveCellStackContext } from '@/src/lib/resolve-templates'
 import { mmToMeters } from '@/src/lib/units'
 
 const ISO_DIRECTION = new Vector3(1, 0.58, 0.82).normalize()
@@ -123,19 +122,14 @@ type CellFrame = {
 }
 
 function computeCellFrame(nodes: Record<string, unknown>): CellFrame {
-  const sceneNodes = nodes as Record<string, CellStructureNode>
-  const structure = resolveCellStructure(sceneNodes)
-  const stackNode = structure.stackId ? sceneNodes[structure.stackId] : null
-  if (stackNode?.type !== 'stack') return createDefaultCellFrame()
+  const graph = resolveCellGraph(nodes)
+  if (!graph) return createDefaultCellFrame()
 
-  const context = resolveCellStackContext(nodes, stackNode as never)
-  if (!context) return createDefaultCellFrame()
-
-  const cathodeCollector = context.templates['cathode-current-collector'].node as {
+  const cathodeCollector = graph.components['cathode-current-collector'].node as {
     cc_p_tab_length?: number
     cc_p_tab_width?: number
   }
-  const anodeCollector = context.templates['anode-current-collector'].node as {
+  const anodeCollector = graph.components['anode-current-collector'].node as {
     cc_n_tab_length?: number
     cc_n_tab_width?: number
   }
@@ -145,11 +139,11 @@ function computeCellFrame(nodes: Record<string, unknown>): CellFrame {
   const widestTabM = mmToMeters(
     Math.max(cathodeCollector.cc_p_tab_width ?? 0, anodeCollector.cc_n_tab_width ?? 0, 0),
   )
-  const lengthM = mmToMeters(context.cell.electrode_length) + tabLengthM
-  const widthM = Math.max(mmToMeters(context.cell.electrode_width), widestTabM)
-  const stackThicknessMm = totalStackHeight(context.thicknessInput)
+  const lengthM = mmToMeters(graph.cell.electrode_length) + tabLengthM
+  const widthM = Math.max(mmToMeters(graph.cell.electrode_width), widestTabM)
+  const stackThicknessMm = totalStackHeight(graph.thicknessInput)
   const dimensions = resolveCellWorldDimensions(
-    context.cell,
+    graph.cell,
     Math.max(stackThicknessMm, MIN_VISIBLE_CELL_HEIGHT_M * 1000),
   )
   const stackM = Math.max(dimensions.stackM, MIN_VISIBLE_CELL_HEIGHT_M)

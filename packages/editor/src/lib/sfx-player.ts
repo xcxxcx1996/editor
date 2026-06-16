@@ -104,6 +104,9 @@ export const SFX: Record<string, SFXConfig> = {
 
 export type SFXName = keyof typeof SFX
 
+const SFX_DISABLED =
+  typeof process !== 'undefined' && process.env.NEXT_PUBLIC_DISABLE_SFX === 'true'
+
 function randomInRange([min, max]: [number, number]): number {
   return min + Math.random() * (max - min)
 }
@@ -113,25 +116,34 @@ function randomInRange([min, max]: [number, number]): number {
 const sfxCache = new Map<SFXName, Howl[]>()
 const lastPlayedAt = new Map<SFXName, number>()
 const lastVariation = new Map<SFXName, number>()
+let sfxCacheInitialized = false
 
-// Initialize all sounds
-Object.entries(SFX).forEach(([name, config]) => {
-  const sources = Array.isArray(config.src) ? config.src : [config.src]
-  const sounds = sources.map(
-    (src) =>
-      new Howl({
-        src: [src],
-        preload: true,
-        volume: 0.5, // Will be adjusted by the bus
-      }),
-  )
-  sfxCache.set(name as SFXName, sounds)
-})
+function ensureSfxCache() {
+  if (sfxCacheInitialized) return
+  sfxCacheInitialized = true
+  if (SFX_DISABLED) return
+
+  Object.entries(SFX).forEach(([name, config]) => {
+    const sources = Array.isArray(config.src) ? config.src : [config.src]
+    const sounds = sources.map(
+      (src) =>
+        new Howl({
+          src: [src],
+          preload: false,
+          volume: 0.5,
+        }),
+    )
+    sfxCache.set(name as SFXName, sounds)
+  })
+}
 
 /**
  * Play a sound effect with volume based on audio settings
  */
 export function playSFX(name: SFXName) {
+  ensureSfxCache()
+  if (SFX_DISABLED) return
+
   const sounds = sfxCache.get(name)
   if (!sounds || sounds.length === 0) {
     console.warn(`SFX not found: ${name}`)
@@ -180,6 +192,9 @@ export function playSFX(name: SFXName) {
  * Update all cached SFX volumes (useful when settings change)
  */
 export function updateSFXVolumes() {
+  ensureSfxCache()
+  if (SFX_DISABLED) return
+
   const { masterVolume, sfxVolume } = useAudio.getState()
   const finalVolume = (masterVolume / 100) * (sfxVolume / 100)
 

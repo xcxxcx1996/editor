@@ -11,7 +11,8 @@ import {
   useExplodedPresentation,
   usePresentationThicknessScale,
 } from '@/src/lib/presentation-thickness'
-import { resolveCellStackContext } from '@/src/lib/resolve-templates'
+import { useSimulationPreviewOverride } from '@/src/lib/simulation/preview-overrides'
+import { resolveCellGraphFromStack, templateIdsFromGraph } from '@/src/lib/cell-graph/resolve'
 import {
   buildStackLayout,
   buildStackPresentationLayout,
@@ -86,6 +87,8 @@ function TemplateLayerGroup({
   const shading = useViewer((s) => s.shading)
   const thicknessScale = usePresentationThicknessScale()
   const exploded = useExplodedPresentation()
+  const ccPTabYOverride = useSimulationPreviewOverride('cc_p_tab_y_coordinate')
+  const ccNTabYOverride = useSimulationPreviewOverride('cc_n_tab_y_coordinate')
   useRegistry(template.id, template.type, ref)
   const handlers = useNodeEvents(template as never, template.type as never)
   const presentationLayers = useMemo(
@@ -98,10 +101,17 @@ function TemplateLayerGroup({
       ),
     [exploded, layers, thicknessScale, totalLayerCount],
   )
-  const tabGeometry = useMemo(
-    () => resolveCollectorTabGeometry(template, cellWidthMm / 2),
-    [cellWidthMm, template],
-  )
+  const tabGeometry = useMemo(() => {
+    const resolved = resolveCollectorTabGeometry(template, cellWidthMm / 2)
+    if (!resolved) return null
+    if (template.type === 'cathode-current-collector' && ccPTabYOverride !== undefined) {
+      return { ...resolved, yCoordinateMm: ccPTabYOverride }
+    }
+    if (template.type === 'anode-current-collector' && ccNTabYOverride !== undefined) {
+      return { ...resolved, yCoordinateMm: ccNTabYOverride }
+    }
+    return resolved
+  }, [cellWidthMm, ccNTabYOverride, ccPTabYOverride, template])
 
   const material = useMemo(
     () =>
@@ -150,22 +160,13 @@ function TemplateLayerGroup({
 const StackRenderer = ({ node }: { node: StackNode }) => {
   const nodes = useScene((s) => s.nodes)
   const context = useMemo(
-    () => resolveCellStackContext(nodes as Record<string, unknown>, node),
+    () => resolveCellGraphFromStack(nodes as Record<string, unknown>, node),
     [nodes, node],
   )
 
   const layout = useMemo(() => {
     if (!context) return []
-    return buildStackLayout(
-      {
-        cathode: context.templates.cathode.id,
-        separator: context.templates.separator.id,
-        anode: context.templates.anode.id,
-        'cathode-current-collector': context.templates['cathode-current-collector'].id,
-        'anode-current-collector': context.templates['anode-current-collector'].id,
-      },
-      context.thicknessInput,
-    )
+    return buildStackLayout(templateIdsFromGraph(context), context.thicknessInput)
   }, [context])
 
   const layersByTemplate = useMemo(() => {
@@ -173,7 +174,7 @@ const StackRenderer = ({ node }: { node: StackNode }) => {
     if (!context) return grouped
 
     for (const layer of layout) {
-      const templateEntry = context.templates[layer.kind]
+      const templateEntry = context.components[layer.kind]
       const existing = grouped.get(templateEntry.id)
       if (existing) {
         existing.layers.push(layer)

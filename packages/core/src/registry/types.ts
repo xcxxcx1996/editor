@@ -1402,6 +1402,7 @@ export type ParamField<N> =
       min?: number
       max?: number
       step?: number
+      searchable?: boolean
       visibleIf?: (n: N) => boolean
       customEditor?: ComponentType
     }

@@ -1,4 +1,4 @@
-import type { CellComponentKind, CellStructure } from './cell-structure'
+import type { CellComponentKind, CellStructure } from '@/src/lib/cell-structure'
 
 export type CellComponentActionId = 'cell' | CellComponentKind
 

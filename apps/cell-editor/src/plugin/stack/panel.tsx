@@ -1,15 +1,16 @@
 'use client'
 
 import { type AnyNodeId, useScene } from '@pascal-app/core'
-import { PanelSection, PanelWrapper, SliderControl } from '@pascal-app/editor'
+import { PanelSection, PanelWrapper } from '@pascal-app/editor'
 import { useViewer } from '@pascal-app/viewer'
 import { useCallback, useMemo } from 'react'
+import { SearchableNumberControl } from '@/components/controls/searchable-number-control'
 import { totalStackHeight } from '@/src/lib/derived'
-import type { AnodeNode } from '@/src/plugin/anode/schema'
-import type { AnodeCurrentCollectorNode } from '@/src/plugin/anode-current-collector/schema'
-import type { CathodeNode } from '@/src/plugin/cathode/schema'
-import type { CathodeCurrentCollectorNode } from '@/src/plugin/cathode-current-collector/schema'
-import type { SeparatorNode } from '@/src/plugin/separator/schema'
+import type { AnodeNode } from '@/src/plugin/anode'
+import type { AnodeCurrentCollectorNode } from '@/src/plugin/anode-current-collector'
+import type { CathodeNode } from '@/src/plugin/cathode'
+import type { CathodeCurrentCollectorNode } from '@/src/plugin/cathode-current-collector'
+import type { SeparatorNode } from '@/src/plugin/separator'
 import type { StackNode } from './schema'
 
 function resolveTemplate<T extends { type: string }>(
@@ -76,11 +77,13 @@ export function StackPanel() {
   return (
     <PanelWrapper defaultCollapsed={false} onClose={handleClose} title="Stack">
       <PanelSection title="Geometry">
-        <SliderControl
+        <SearchableNumberControl
           label="number_of_layers"
           max={100}
           min={1}
+          nodeKind="stack"
           onChange={(value) => handleUpdate({ number_of_layers: Math.round(value) })}
+          sceneKey="number_of_layers"
           step={1}
           value={stack.number_of_layers}
         />

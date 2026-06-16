@@ -6,7 +6,7 @@ import { type OutlineStyle, useViewer, Viewer } from '@pascal-app/viewer'
 import { CameraControls } from '@react-three/drei'
 import { Bot, ChevronLeft, ChevronsRight, Goal, ListChecks } from 'lucide-react'
 import Link from 'next/link'
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CellAgentDock } from '@/components/cell-agent-dock'
 import { CellCameraController } from '@/components/cell-camera-controller'
 import { CellComponentDock } from '@/components/cell-component-dock'
@@ -21,7 +21,9 @@ import {
   type SimulationPreviewState,
   type SimulationResultState,
 } from '@/components/cell-simulation-preview'
+import { CellSimulationSchemesPanel } from '@/components/cell-simulation-schemes-panel'
 import { CellTopDock } from '@/components/cell-top-dock'
+import { SimulationSubmitDialog } from '@/components/simulation-submit-dialog'
 import {
   buildCellDesignFromScene,
   cellDesignToSceneGraph,
@@ -32,7 +34,11 @@ import {
   createDefaultCellScene,
   saveCellSceneToLocalStorage,
 } from '@/src/lib/defaults'
-import { usePredictionResult } from '@/src/lib/predictions/use-predictions'
+import {
+  getDefaultSimulationScheme,
+  getSchemesFromResult,
+  usePredictionResult,
+} from '@/src/lib/predictions/use-predictions'
 import {
   getExplodedPresentation,
   getPresentationThicknessScale,
@@ -40,7 +46,18 @@ import {
   setExplodedPresentation,
   setPresentationThicknessScale,
 } from '@/src/lib/presentation-thickness'
+import { DesignGoalsProvider } from '@/src/lib/projects/design-goals-context'
 import type { DesignGoal } from '@/src/lib/projects/types'
+import {
+  inferSimulationTaskType,
+  normalizeSearchRangeBounds,
+  type SimulationSearchRange,
+  validEnabledSearchRanges,
+} from '@/src/lib/simulation/search-ranges'
+import {
+  SimulationSearchRangesProvider,
+  useSimulationSearchRangesContext,
+} from '@/src/lib/simulation/search-ranges-context'
 
 function isUsableScene(graph: SceneGraph | null | undefined): graph is SceneGraph {
   return !!graph && Object.keys(graph.nodes).length > 0 && (graph.rootNodeIds?.length ?? 0) > 0
@@ -205,6 +222,20 @@ function saveStatusLabel(status: SaveStatus) {
 }
 
 export function CellEditorShell({ initialScene, projectId, projectName }: CellEditorShellProps) {
+  return (
+    <DesignGoalsProvider projectId={projectId}>
+      <SimulationSearchRangesProvider projectId={projectId}>
+        <CellEditorShellContent
+          initialScene={initialScene}
+          projectId={projectId}
+          projectName={projectName}
+        />
+      </SimulationSearchRangesProvider>
+    </DesignGoalsProvider>
+  )
+}
+
+function CellEditorShellContent({ initialScene, projectId, projectName }: CellEditorShellProps) {
   const [fitTrigger, setFitTrigger] = useState(0)
   const [entryTrigger, setEntryTrigger] = useState(0)
   const [importError, setImportError] = useState<string | null>(null)
@@ -216,6 +247,8 @@ export function CellEditorShell({ initialScene, projectId, projectName }: CellEd
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [isSimulationPreview, setIsSimulationPreview] = useState(false)
   const [activeResultDetail, setActiveResultDetail] = useState(false)
+  const [submitDialogOpen, setSubmitDialogOpen] = useState(false)
+  const [simulationBusy, setSimulationBusy] = useState(false)
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
   const [sidebarMode, setSidebarMode] = useState<SidebarMode | null>('goals')
   const [simulationPreview, setSimulationPreview] = useState<SimulationPreviewState>(
@@ -223,6 +256,10 @@ export function CellEditorShell({ initialScene, projectId, projectName }: CellEd
   )
   const predictionResultState = usePredictionResult(simulationPreview.activePredictionId)
   const simulationResultState: SimulationResultState = predictionResultState
+  const simulationSchemes = useMemo(
+    () => getSchemesFromResult(predictionResultState.result?.simulationResult),
+    [predictionResultState.result?.simulationResult],
+  )
   const isLoadingSceneRef = useRef(false)
   const loadingHideTimeoutRef = useRef<number | null>(null)
   const loadingTimeoutRef = useRef<number | null>(null)
@@ -230,6 +267,7 @@ export function CellEditorShell({ initialScene, projectId, projectName }: CellEd
   const previousPreviewSceneRef = useRef<SceneGraph | null>(null)
   const previewSceneJobIdRef = useRef<string | null>(null)
   const previousPresentationRef = useRef<{ exploded: boolean; thicknessScale: number } | null>(null)
+  const { ranges: simulationSearchRanges } = useSimulationSearchRangesContext()
 
   const showEditorLoading = useCallback((message: string) => {
     setEditorLoading({ message, visible: true })
@@ -440,9 +478,12 @@ export function CellEditorShell({ initialScene, projectId, projectName }: CellEd
   }, [applySceneGraph, showEditorLoading])
 
   const applyPredictionCellDesignPreview = useCallback(
-    (cellDesign: unknown) => {
+    (cellDesign: unknown, schemeId?: string | null) => {
       if (!isCellDesignJson(cellDesign)) return
-      if (previewSceneJobIdRef.current === simulationPreview.activePredictionId) return
+      const previewSceneKey = `${simulationPreview.activePredictionId ?? 'mock'}:${
+        schemeId ?? simulationPreview.activeSchemeId ?? 'default'
+      }`
+      if (previewSceneJobIdRef.current === previewSceneKey) return
 
       if (!previousPreviewSceneRef.current) {
         const current = useScene.getState()
@@ -452,14 +493,19 @@ export function CellEditorShell({ initialScene, projectId, projectName }: CellEd
         } as unknown as SceneGraph
       }
 
-      previewSceneJobIdRef.current = simulationPreview.activePredictionId
+      previewSceneJobIdRef.current = previewSceneKey
       showEditorLoading('Loading prediction cell')
       applySceneGraph(cellDesignToSceneGraph(cellDesign), { persist: false })
       requestAnimationFrame(() => {
         setFitTrigger((n) => n + 1)
       })
     },
-    [applySceneGraph, showEditorLoading, simulationPreview.activePredictionId],
+    [
+      applySceneGraph,
+      showEditorLoading,
+      simulationPreview.activePredictionId,
+      simulationPreview.activeSchemeId,
+    ],
   )
 
   const closeSimulationPreview = useCallback(() => {
@@ -470,7 +516,12 @@ export function CellEditorShell({ initialScene, projectId, projectName }: CellEd
       setExplodedPresentation(previousPresentation.exploded)
       setPresentationThicknessScale(previousPresentation.thicknessScale)
     }
-    setSimulationPreview((current) => ({ ...current, activePredictionId: null, playing: false }))
+    setSimulationPreview((current) => ({
+      ...current,
+      activePredictionId: null,
+      activeSchemeId: null,
+      playing: false,
+    }))
     setIsSimulationPreview(false)
     setActiveResultDetail(false)
   }, [restorePreviewScene])
@@ -502,6 +553,7 @@ export function CellEditorShell({ initialScene, projectId, projectName }: CellEd
         activePredictionId: jobId,
         activeJobId: jobId,
         activeMetricId: metricId,
+        activeSchemeId: null,
         currentTime: 0,
         playing: false,
       }))
@@ -511,62 +563,130 @@ export function CellEditorShell({ initialScene, projectId, projectName }: CellEd
     [openSimulationPreview],
   )
 
-  const startDesignGoalsSimulation = useCallback(
-    async (goals: DesignGoal[]) => {
+  useEffect(() => {
+    if (!isSimulationPreview || !simulationPreview.activePredictionId) return
+    if (predictionResultState.loading) return
+
+    const defaultScheme = getDefaultSimulationScheme(predictionResultState.result?.simulationResult)
+    if (!defaultScheme) return
+    const activeScheme = simulationSchemes.find(
+      (scheme) => scheme.id === simulationPreview.activeSchemeId,
+    )
+    if (activeScheme) return
+
+    setSimulationPreview((current) => ({
+      ...current,
+      activeJobId: defaultScheme.id,
+      activeMetricId: defaultScheme.metrics[0]?.id ?? current.activeMetricId,
+      activeSchemeId: defaultScheme.id,
+      currentTime: 0,
+      playing: false,
+    }))
+  }, [
+    isSimulationPreview,
+    predictionResultState.loading,
+    predictionResultState.result?.simulationResult,
+    simulationPreview.activePredictionId,
+    simulationPreview.activeSchemeId,
+    simulationSchemes,
+  ])
+
+  const selectSimulationScheme = useCallback(
+    (schemeId: string) => {
+      const scheme = simulationSchemes.find((item) => item.id === schemeId)
+      if (!scheme) return
+
+      setSimulationPreview((current) => ({
+        ...current,
+        activeJobId: scheme.id,
+        activeMetricId: scheme.metrics[0]?.id ?? current.activeMetricId,
+        activeSchemeId: scheme.id,
+        currentTime: 0,
+        playing: false,
+      }))
+      applyPredictionCellDesignPreview(scheme.cell_design, scheme.id)
+    },
+    [applyPredictionCellDesignPreview, simulationSchemes],
+  )
+
+  const submitSimulation = useCallback(
+    async ({
+      goals,
+      searchRanges,
+    }: {
+      goals: DesignGoal[]
+      searchRanges: SimulationSearchRange[]
+    }) => {
       if (goals.length === 0) return
+      setSimulationBusy(true)
 
-      const state = useScene.getState()
-      const cellDesign = buildCellDesignFromScene(
-        applyCellSceneDefaults({
-          nodes: state.nodes,
-          rootNodeIds: state.rootNodeIds,
-        } as unknown as SceneGraph),
-      )
-      const response = await fetch('/api/predictions', {
-        body: JSON.stringify({
-          cell_design: cellDesign,
-          label: 'Design goals simulation',
-          name: 'Design goals simulation',
-          project_id: projectId,
-          simulation_config: {
-            conditions: goals.map((goal) => ({
-              ambient_temperature_c: goal.work_condition.temperature_c ?? 25,
-              cutoff_voltage_v: goal.work_condition.cutoff_voltage_v,
-              id: goal.id,
-              label: goal.label,
-              protocol: goal.work_condition.protocol ?? 'CC-CV',
-              rate: goal.work_condition.rate ?? '1C',
-              soc_pct: goal.work_condition.soc_pct,
-              type: goal.work_condition.mode ?? 'discharge',
-            })),
-            design_goals: goals.map((goal) => ({
-              constraints: goal.constraints,
-              id: goal.id,
-              label: goal.label,
-              work_condition: goal.work_condition,
-            })),
-            duration: 60,
-            source: 'design_goals',
-          },
-        }),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST',
-      })
+      try {
+        const state = useScene.getState()
+        const cellDesign = buildCellDesignFromScene(
+          applyCellSceneDefaults({
+            nodes: state.nodes,
+            rootNodeIds: state.rootNodeIds,
+          } as unknown as SceneGraph),
+        )
+        const enabledRanges = validEnabledSearchRanges(searchRanges).map(normalizeSearchRangeBounds)
+        const response = await fetch('/api/predictions', {
+          body: JSON.stringify({
+            cell_design: cellDesign,
+            label: 'Dock simulation',
+            name: 'Dock simulation',
+            project_id: projectId,
+            simulation_config: {
+              conditions: goals.map((goal) => ({
+                ambient_temperature_c: goal.work_condition.temperature_c ?? 25,
+                cutoff_voltage_v: goal.work_condition.cutoff_voltage_v,
+                id: goal.id,
+                label: goal.label,
+                protocol: goal.work_condition.protocol ?? 'CC-CV',
+                rate: goal.work_condition.rate ?? '1C',
+                soc_pct: goal.work_condition.soc_pct,
+                type: goal.work_condition.mode ?? 'discharge',
+              })),
+              design_goals: goals.map((goal) => ({
+                constraints: goal.constraints,
+                id: goal.id,
+                label: goal.label,
+                work_condition: goal.work_condition,
+              })),
+              duration: 60,
+              parameter_sweeps: enabledRanges.map((range) => ({
+                field: range.designKey,
+                max: range.max,
+                min: range.min,
+              })),
+              source: 'dock',
+              task_type: inferSimulationTaskType(enabledRanges),
+            },
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST',
+        })
 
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as { error?: string } | null
-        throw new Error(payload?.error || 'Could not start simulation.')
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => null)) as { error?: string } | null
+          throw new Error(payload?.error || 'Could not start simulation.')
+        }
+
+        setSidebarMode('results')
+        setSidebarExpanded(true)
+      } finally {
+        setSimulationBusy(false)
       }
-
-      setSidebarMode('results')
-      setSidebarExpanded(true)
     },
     [projectId],
   )
 
   const backToJobs = useCallback(() => {
     closeSimulationPreview()
-    setSimulationPreview((current) => ({ ...current, activePredictionId: null }))
+    setSimulationPreview((current) => ({
+      ...current,
+      activePredictionId: null,
+      activeSchemeId: null,
+    }))
     setSidebarMode('results')
     setSidebarExpanded(true)
   }, [closeSimulationPreview])
@@ -633,12 +753,7 @@ export function CellEditorShell({ initialScene, projectId, projectName }: CellEd
           }}
         >
           {sidebarMode === 'goals' ? (
-            <CellDesignGoalsPanel
-              embedded
-              onClose={closeSidebarPanel}
-              onStartSimulation={startDesignGoalsSimulation}
-              projectId={projectId}
-            />
+            <CellDesignGoalsPanel embedded onClose={closeSidebarPanel} projectId={projectId} />
           ) : null}
           {sidebarMode === 'agent' ? (
             <CellAgentDock
@@ -710,14 +825,32 @@ export function CellEditorShell({ initialScene, projectId, projectName }: CellEd
           style={{ transform: 'translateZ(0)' }}
         >
           {isSimulationPreview ? null : <CellPanelManager />}
+          {isSimulationPreview && simulationSchemes.length > 1 ? (
+            <CellSimulationSchemesPanel
+              activeSchemeId={simulationPreview.activeSchemeId}
+              onSelectScheme={selectSimulationScheme}
+              schemes={simulationSchemes}
+            />
+          ) : null}
         </div>
         {!isSimulationPreview ? (
           <div className="pointer-events-none absolute right-4 bottom-4 left-16 z-40 flex items-center justify-center">
             <div className="pointer-events-auto">
-              <CellComponentDock onFit={handleFit} onThicknessToggle={handleFit} />
+              <CellComponentDock
+                onFit={handleFit}
+                onSubmitSimulation={() => setSubmitDialogOpen(true)}
+                onThicknessToggle={handleFit}
+              />
             </div>
           </div>
         ) : null}
+        <SimulationSubmitDialog
+          busy={simulationBusy}
+          onClose={() => setSubmitDialogOpen(false)}
+          onSubmit={submitSimulation}
+          open={submitDialogOpen}
+          searchRanges={simulationSearchRanges}
+        />
       </main>
     </div>
   )

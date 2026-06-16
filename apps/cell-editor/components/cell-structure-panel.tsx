@@ -8,9 +8,9 @@ import { useEffect, useMemo, useRef } from 'react'
 import {
   CELL_COMPONENT_KINDS,
   type CellStructureNode,
-  renderPresentationIcon,
   resolveCellStructure,
 } from '@/src/lib/cell-structure'
+import { renderPresentationIcon } from '@/src/plugin/shared/presentation-icon'
 
 type CellTreeRowProps = {
   nodeId: string

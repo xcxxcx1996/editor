@@ -44,6 +44,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   const patch: Record<string, unknown> = {}
   if (parsed.data.name !== undefined) patch.name = parsed.data.name
   if (parsed.data.cell_design !== undefined) patch.cell_design = parsed.data.cell_design
+  if (parsed.data.simulation_search_ranges !== undefined) {
+    patch.simulation_search_ranges = parsed.data.simulation_search_ranges
+  }
 
   const { data, error } = await auth.context.supabase
     .from('projects')

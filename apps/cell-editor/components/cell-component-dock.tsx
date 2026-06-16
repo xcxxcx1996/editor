@@ -11,6 +11,7 @@ import {
   Maximize,
   Scale3d,
   TableRowsSplit,
+  Zap,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -47,9 +48,11 @@ function shortcutBadge(shortcut: string) {
 
 export function CellComponentDock({
   onFit,
+  onSubmitSimulation,
   onThicknessToggle,
 }: {
   onFit: () => void
+  onSubmitSimulation: () => void
   onThicknessToggle: () => void
 }) {
   const nodes = useScene((s) => s.nodes)
@@ -173,6 +176,17 @@ export function CellComponentDock({
         <span className="-right-1 -bottom-1 absolute rounded bg-black/55 px-1 py-0.5 font-semibold text-[9px] text-white/70 leading-none">
           F
         </span>
+      </button>
+
+      <div className="mx-1 w-px bg-border/60" />
+
+      <button
+        className="relative flex h-11 w-11 items-center justify-center rounded-lg bg-[#facc15]/14 font-medium text-[#fde68a] text-xs transition-colors hover:bg-[#facc15]/22"
+        onClick={onSubmitSimulation}
+        title="Submit simulation"
+        type="button"
+      >
+        <Zap className="h-4.5 w-4.5" />
       </button>
     </div>
   )

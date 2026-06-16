@@ -4,8 +4,9 @@ import { type AnyNodeId, useScene } from '@pascal-app/core'
 import { PanelSection, PanelWrapper, SliderControl } from '@pascal-app/editor'
 import { useViewer } from '@pascal-app/viewer'
 import { useCallback } from 'react'
+import { SearchableNumberControl } from '@/components/controls/searchable-number-control'
 import { cathodeCoatingThickness } from '@/src/lib/derived'
-import type { CathodeNode } from './schema'
+import type { CathodeNode } from '@/src/plugin/cathode'
 
 export function CathodePanel() {
   const selectedId = useViewer((s) => s.selection.selectedIds[0])
@@ -33,21 +34,26 @@ export function CathodePanel() {
   return (
     <PanelWrapper defaultCollapsed={false} onClose={handleClose} title="Cathode">
       <PanelSection title="Material">
-        <SliderControl
+        <SearchableNumberControl
           label="cathode_mass_loading"
           max={500}
           min={1}
+          nodeKind="cathode"
           onChange={(value) => handleUpdate({ cathode_mass_loading: value })}
-          step={1}
+          precision={1}
+          sceneKey="cathode_mass_loading"
+          step={0.1}
           unit="g/m^2"
           value={node.cathode_mass_loading}
         />
-        <SliderControl
+        <SearchableNumberControl
           label="cathode_density"
           max={5}
           min={0.1}
+          nodeKind="cathode"
           onChange={(value) => handleUpdate({ cathode_density: value })}
           precision={2}
+          sceneKey="cathode_density"
           step={0.01}
           unit="g/cm^3"
           value={node.cathode_density}

@@ -17,8 +17,7 @@ export type AuthApiContext = {
 }
 
 export async function requireAuthUser(): Promise<
-  | { ok: true; context: AuthApiContext }
-  | { ok: false; response: NextResponse<{ error: string }> }
+  { ok: true; context: AuthApiContext } | { ok: false; response: NextResponse<{ error: string }> }
 > {
   const supabase = await createClient()
   const {
@@ -46,10 +45,17 @@ export const projectPatchSchema = z
   .object({
     cell_design: z.unknown().optional(),
     name: z.string().trim().min(1).max(120).optional(),
+    simulation_search_ranges: z.unknown().optional(),
   })
-  .refine((value) => value.cell_design !== undefined || value.name !== undefined, {
-    message: 'At least one project field is required.',
-  })
+  .refine(
+    (value) =>
+      value.cell_design !== undefined ||
+      value.name !== undefined ||
+      value.simulation_search_ranges !== undefined,
+    {
+      message: 'At least one project field is required.',
+    },
+  )
 
 export const uuidSchema = z.string().uuid()
 

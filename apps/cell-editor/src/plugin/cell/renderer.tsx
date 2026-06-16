@@ -10,8 +10,11 @@ import {
   EXPLODED_LAYER_GAP_MM,
   useExplodedPresentation,
   usePresentationThicknessScale,
-} from '@/src/lib/presentation-thickness'
-import { resolveCellStackContext } from '@/src/lib/resolve-templates'
+} from '@/src/lib/presentation/thickness'
+import {
+  resolveCellGraphFromStack,
+  templateIdsFromGraph,
+} from '@/src/lib/cell-graph/resolve'
 import { buildStackLayout, computePresentationStackSpanMm } from '@/src/lib/stack-layout'
 import { mmToMeters } from '@/src/lib/units'
 import type { StackNode } from '@/src/plugin/stack/schema'
@@ -393,7 +396,7 @@ const CellRenderer = ({ node }: { node: CellNode }) => {
   const stackId = node.children?.[0]
   const stackNode = stackId ? (nodes[stackId as AnyNodeId] as StackNode | undefined) : undefined
   const stackContext = useMemo(
-    () => (stackNode ? resolveCellStackContext(nodes as Record<string, unknown>, stackNode) : null),
+    () => (stackNode ? resolveCellGraphFromStack(nodes as Record<string, unknown>, stackNode) : null),
     [nodes, stackNode],
   )
   const stackHeightMm = stackContext ? totalStackHeight(stackContext.thicknessInput) : 0
@@ -402,13 +405,7 @@ const CellRenderer = ({ node }: { node: CellNode }) => {
   const stackSpan = useMemo(() => {
     if (!stackContext) return { centerMm: 0, spanMm: stackHeightMm }
     const layers = buildStackLayout(
-      {
-        cathode: stackContext.templates.cathode.id,
-        separator: stackContext.templates.separator.id,
-        anode: stackContext.templates.anode.id,
-        'cathode-current-collector': stackContext.templates['cathode-current-collector'].id,
-        'anode-current-collector': stackContext.templates['anode-current-collector'].id,
-      },
+      templateIdsFromGraph(stackContext),
       stackContext.thicknessInput,
     )
     return computePresentationStackSpanMm(

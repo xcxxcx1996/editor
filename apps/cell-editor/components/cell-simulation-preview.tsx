@@ -24,13 +24,15 @@ import {
   PlaneGeometry,
   Vector3,
 } from 'three'
-import { type CellStructureNode, resolveCellStructure } from '@/src/lib/cell-structure'
+import { resolveCellGraph, templateIdsFromGraph } from '@/src/lib/cell-graph/resolve'
 import {
+  getDefaultSimulationScheme,
+  getSchemesFromResult,
   type PredictionResultResponse,
-  type PredictionSimulationResult,
+  type SimulationScheme,
   usePredictions,
 } from '@/src/lib/predictions/use-predictions'
-import { resolveCellStackContext } from '@/src/lib/resolve-templates'
+import { formatSearchRangeBounds } from '@/src/lib/simulation/search-ranges'
 import { buildStackLayout, computePresentationStackSpanMm } from '@/src/lib/stack-layout'
 import { mmToMeters } from '@/src/lib/units'
 
@@ -73,6 +75,7 @@ export type SimulationPreviewState = {
   activeJobId: string
   activeMetricId: string
   activePredictionId: string | null
+  activeSchemeId: string | null
   currentTime: number
   sliceRatio: number
   playing: boolean
@@ -214,6 +217,7 @@ export const INITIAL_SIMULATION_PREVIEW_STATE: SimulationPreviewState = {
   activeJobId: SIMULATION_JOBS[0]!.id,
   activeMetricId: SIMULATION_JOBS[0]!.metrics[0]!.id,
   activePredictionId: null,
+  activeSchemeId: null,
   currentTime: 0,
   sliceRatio: 0.5,
   playing: false,
@@ -256,19 +260,58 @@ function predictionConfigSummary(config: unknown) {
     })
     .filter((label): label is string => !!label)
 
-  if (labels.length === 0) return duration
-  return [labels.join(', '), duration].filter(Boolean).join(' - ')
+  const sweeps = Array.isArray(record.parameter_sweeps) ? record.parameter_sweeps : []
+  const sweepLabels = sweeps
+    .map((sweep) => {
+      if (!sweep || typeof sweep !== 'object' || Array.isArray(sweep)) return null
+      const sweepRecord = sweep as Record<string, unknown>
+      const field = typeof sweepRecord.field === 'string' ? sweepRecord.field : null
+      const min = typeof sweepRecord.min === 'number' ? sweepRecord.min : null
+      const max = typeof sweepRecord.max === 'number' ? sweepRecord.max : null
+      if (!field || min === null || max === null) return null
+      return `${field}: ${formatSearchRangeBounds({
+        designKey: field,
+        enabled: true,
+        max,
+        min,
+        nodeKind: '',
+        sceneKey: field,
+      })}`
+    })
+    .filter((label): label is string => !!label)
+
+  const summary = [labels.join(', '), duration].filter(Boolean).join(' - ')
+  if (sweepLabels.length === 0) return summary || null
+  return [summary, sweepLabels.join(', ')].filter(Boolean).join(' - ')
+}
+
+function predictionTaskType(config: unknown) {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) return 'single_point'
+  const taskType = (config as Record<string, unknown>).task_type
+  return taskType === 'spatial_search' ? 'spatial_search' : 'single_point'
 }
 
 function canPreviewPrediction(status: string | null | undefined) {
   return status === 'succeeded' || status === 'complete' || status === 'completed'
 }
 
-function predictionResultToJob(result: PredictionSimulationResult | null | undefined) {
-  if (!result) return null
-  if (!Array.isArray(result.metrics) || result.metrics.length === 0) return null
+function activeSchemeFromResult(
+  result: PredictionResultResponse | null,
+  activeSchemeId: string | null,
+) {
+  const schemes = getSchemesFromResult(result?.simulationResult)
+  if (schemes.length === 0) return null
+  return (
+    schemes.find((scheme) => scheme.id === activeSchemeId) ??
+    getDefaultSimulationScheme(result?.simulationResult)
+  )
+}
 
-  const metrics: SimulationMetric[] = result.metrics.map((metric) => {
+function schemeToSimulationJob(scheme: SimulationScheme | null | undefined, duration?: number) {
+  if (!scheme) return null
+  if (!Array.isArray(scheme.metrics) || scheme.metrics.length === 0) return null
+
+  const metrics: SimulationMetric[] = scheme.metrics.map((metric) => {
     if (metric.kind === 'time-series') return metric
 
     return {
@@ -300,10 +343,10 @@ function predictionResultToJob(result: PredictionSimulationResult | null | undef
   })
 
   return {
-    id: result.id,
-    label: result.label,
-    condition: result.condition,
-    duration: result.duration,
+    id: scheme.id,
+    label: scheme.label,
+    condition: scheme.condition ?? 'Simulation scheme',
+    duration: duration ?? 60,
     metrics,
     status: 'complete',
   } satisfies SimulationJob
@@ -403,6 +446,20 @@ export function CellSimulationJobsPanel({
                     )}
                   >
                     {prediction.status ?? 'pending'}
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center gap-1.5">
+                  <span
+                    className={cn(
+                      'rounded-full px-2 py-0.5 text-[10px]',
+                      predictionTaskType(prediction.simulation_config) === 'spatial_search'
+                        ? 'bg-[#67e8f9]/12 text-[#a5f3fc]'
+                        : 'bg-white/8 text-muted-foreground',
+                    )}
+                  >
+                    {predictionTaskType(prediction.simulation_config) === 'spatial_search'
+                      ? 'Spatial search'
+                      : 'Single point'}
                   </span>
                 </div>
                 <p className="mt-1 truncate text-[11px] text-muted-foreground">
@@ -590,14 +647,18 @@ export function CellSimulationResultsPanel({
   onBack?: () => void
   resultState: SimulationResultState
   state: SimulationPreviewState
-  onCellDesignPreview?: (cellDesign: unknown) => void
+  onCellDesignPreview?: (cellDesign: unknown, schemeId?: string | null) => void
   onChange: (patch: SimulationPreviewPatch) => void
   onClose: () => void
 }) {
   const { error: resultError, loading: resultLoading, result } = resultState
+  const activeScheme = useMemo(
+    () => activeSchemeFromResult(result, state.activeSchemeId),
+    [result, state.activeSchemeId],
+  )
   const resultJob = useMemo(
-    () => predictionResultToJob(result?.simulationResult),
-    [result?.simulationResult],
+    () => schemeToSimulationJob(activeScheme, result?.simulationResult?.duration),
+    [activeScheme, result?.simulationResult?.duration],
   )
   const jobs = resultJob ? [resultJob] : state.activePredictionId ? [] : SIMULATION_JOBS
   const active =
@@ -606,8 +667,9 @@ export function CellSimulationResultsPanel({
   const metric = active?.metric
 
   useEffect(() => {
-    if (result?.data?.cell_design) onCellDesignPreview?.(result.data.cell_design)
-  }, [onCellDesignPreview, result?.data?.cell_design])
+    const cellDesign = activeScheme?.cell_design ?? result?.data?.cell_design
+    if (cellDesign) onCellDesignPreview?.(cellDesign, activeScheme?.id ?? null)
+  }, [activeScheme?.cell_design, activeScheme?.id, onCellDesignPreview, result?.data?.cell_design])
 
   useEffect(() => {
     if (!state.playing || !job) return
@@ -822,10 +884,8 @@ export function CellSimulationResultsPanel({
 function useCellDimensions() {
   const nodes = useScene((s) => s.nodes)
   return useMemo(() => {
-    const sceneNodes = nodes as unknown as Record<string, CellStructureNode>
-    const structure = resolveCellStructure(sceneNodes)
-    const stackNode = structure.stackId ? sceneNodes[structure.stackId] : null
-    if (stackNode?.type !== 'stack') {
+    const graph = resolveCellGraph(nodes as Record<string, unknown>)
+    if (!graph) {
       return {
         centerX: 0,
         centerY: 0.21,
@@ -837,39 +897,18 @@ function useCellDimensions() {
       }
     }
 
-    const context = resolveCellStackContext(nodes as Record<string, unknown>, stackNode as never)
-    if (!context) {
-      return {
-        centerX: 0,
-        centerY: 0.21,
-        lengthM: 0.8,
-        maxX: 0.06,
-        minX: -0.06,
-        stackM: 0.12,
-        widthM: 0.42,
-      }
-    }
-    const layers = buildStackLayout(
-      {
-        cathode: context.templates.cathode.id,
-        separator: context.templates.separator.id,
-        anode: context.templates.anode.id,
-        'cathode-current-collector': context.templates['cathode-current-collector'].id,
-        'anode-current-collector': context.templates['anode-current-collector'].id,
-      },
-      context.thicknessInput,
-    )
+    const layers = buildStackLayout(templateIdsFromGraph(graph), graph.thicknessInput)
     const stackSpan = computePresentationStackSpanMm(layers, 1, 0)
     const stackM = Math.max(mmToMeters(stackSpan.spanMm), 0.02)
     const centerX = mmToMeters(stackSpan.centerMm)
     const minX = centerX - stackM / 2
     const maxX = centerX + stackM / 2
-    const widthM = mmToMeters(context.cell.electrode_width)
+    const widthM = mmToMeters(graph.cell.electrode_width)
 
     return {
       centerX,
       centerY: widthM / 2,
-      lengthM: mmToMeters(context.cell.electrode_length),
+      lengthM: mmToMeters(graph.cell.electrode_length),
       maxX,
       minX,
       stackM,
@@ -1102,9 +1141,13 @@ export function CellSimulationFieldOverlay({
   state: SimulationPreviewState
 }) {
   const { result } = resultState
+  const activeScheme = useMemo(
+    () => activeSchemeFromResult(result, state.activeSchemeId),
+    [result, state.activeSchemeId],
+  )
   const resultJob = useMemo(
-    () => predictionResultToJob(result?.simulationResult),
-    [result?.simulationResult],
+    () => schemeToSimulationJob(activeScheme, result?.simulationResult?.duration),
+    [activeScheme, result?.simulationResult?.duration],
   )
   if (state.activePredictionId && !resultJob) return null
 

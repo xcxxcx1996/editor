@@ -4,17 +4,15 @@ import { type AnyNodeId, useScene } from '@pascal-app/core'
 import { PanelSection, PanelWrapper, SliderControl } from '@pascal-app/editor'
 import { useViewer } from '@pascal-app/viewer'
 import { useCallback, useMemo } from 'react'
-import {
-  type CellStructureNode,
-  renderPresentationIcon,
-  resolveCellStructure,
-} from '@/src/lib/cell-structure'
+import { SearchableNumberControl } from '@/components/controls/searchable-number-control'
+import { type CellStructureNode, resolveCellStructure } from '@/src/lib/cell-structure'
+import { renderPresentationIcon } from '@/src/plugin/shared/presentation-icon'
 import { totalStackHeight } from '@/src/lib/derived'
-import type { AnodeNode } from '@/src/plugin/anode/schema'
-import type { AnodeCurrentCollectorNode } from '@/src/plugin/anode-current-collector/schema'
-import type { CathodeNode } from '@/src/plugin/cathode/schema'
-import type { CathodeCurrentCollectorNode } from '@/src/plugin/cathode-current-collector/schema'
-import type { SeparatorNode } from '@/src/plugin/separator/schema'
+import type { AnodeNode } from '@/src/plugin/anode'
+import type { AnodeCurrentCollectorNode } from '@/src/plugin/anode-current-collector'
+import type { CathodeNode } from '@/src/plugin/cathode'
+import type { CathodeCurrentCollectorNode } from '@/src/plugin/cathode-current-collector'
+import type { SeparatorNode } from '@/src/plugin/separator'
 import type { StackNode } from '@/src/plugin/stack/schema'
 import type { CellNode } from './schema'
 
@@ -102,29 +100,37 @@ export function CellPanel({
       title="Cell"
     >
       <PanelSection title="Geometry">
-        <SliderControl
+        <SearchableNumberControl
           label="electrode_length"
           min={1}
+          nodeKind="cell"
           onChange={(value) => handleCellUpdate({ electrode_length: value })}
-          step={1}
+          precision={1}
+          sceneKey="electrode_length"
+          step={0.1}
           unit="mm"
           value={cell.electrode_length}
         />
-        <SliderControl
+        <SearchableNumberControl
           label="electrode_width"
           min={1}
+          nodeKind="cell"
           onChange={(value) => handleCellUpdate({ electrode_width: value })}
-          step={1}
+          precision={1}
+          sceneKey="electrode_width"
+          step={0.1}
           unit="mm"
           value={cell.electrode_width}
         />
       </PanelSection>
       <PanelSection title="Stack">
-        <SliderControl
+        <SearchableNumberControl
           label="number_of_layers"
           max={100}
           min={1}
+          nodeKind="stack"
           onChange={(value) => handleStackUpdate({ number_of_layers: Math.round(value) })}
+          sceneKey="number_of_layers"
           step={1}
           value={stack.number_of_layers}
         />
